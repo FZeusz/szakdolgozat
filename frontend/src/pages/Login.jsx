@@ -1,6 +1,24 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
+// Alap stílus a szövegdobozokhoz (NEM lekerekített)
+const inputStyle = {
+  width: '100%',             // Teljes szélesség a konténeren belül
+  padding: '12px',           // Belső távolság (kényelmesebb gépelés)
+  border: '1px solid #ccc',   // Halvány szürke keret
+  boxSizing: 'border-box',    // Biztosítja, hogy a padding ne növelje a szélességet
+  marginTop: '5px',           // Távolság a fenti labeltől
+  marginBottom: '15px'        // Távolság a következő mezőtől
+};
+
+// Stílus a Label szövegekhez (a mező felett)
+const labelStyle = {
+  display: 'block',           // Külön sorba teszi a labelt
+  fontWeight: 'bold',         // Vastagított szöveg (mint a képen)
+  fontSize: '14px',           // Picit kisebb szöveg
+  textAlign: 'left'           // Balra igazítás
+};
+
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -33,30 +51,48 @@ export default function Login() {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '20px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
       <h1>Bejelentkezés</h1>
       <form onSubmit={handleLogin}>
-        <input 
-          type="text" 
-          placeholder="Felhasználónév" 
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required 
-        /><br /><br />
-        <input 
-          type="password" 
-          placeholder="Jelszó" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required 
-        /><br /><br />
-        <button type="submit">Belépés</button>
+        
+        {/* HIBRID AZONOSÍTÓ MEZŐ */}
+        <div style={{ textAlign: 'left' }}>
+          {/* Itt a label jelzi, hogy mindkettőt elfogadja */}
+          <label style={labelStyle} htmlFor="login_id">Felhasználónév vagy Email</label>
+          <input 
+            id="login_id"
+            type="text" 
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            style={inputStyle}
+            required 
+          />
+        </div>
+
+        {/* JELSZÓ MEZŐ */}
+        <div style={{ textAlign: 'left' }}>
+          <label style={labelStyle} htmlFor="login_pass">Jelszó</label>
+          <input 
+            id="login_pass"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+            required 
+          />
+        </div>
+
+        <button type="submit" style={{ padding: '10px 20px', cursor: 'pointer', marginTop: '10px' }}>
+          Bejelentkezés
+        </button>
       </form>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p style={{ color: 'red', marginTop: '15px' }}>{error}</p>}
       
       <br />
-      <Link to="/">Vissza a főoldalra</Link>
+      <button onClick={() => navigate('/register')} style={{ padding: '10px 20px', cursor: 'pointer', marginTop: '10px' }}  >
+        Új fiók létrehozása
+      </button>
     </div>
   );
 }
