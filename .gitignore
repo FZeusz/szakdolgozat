@@ -1,0 +1,19 @@
+# Függőségek (ezek a legnehezebbek, soha ne töltsd fel)
+node_modules/
+**/node_modules/
+
+# Titkos adatok (adatbázis jelszavak, API kulcsok)
+.env
+**/.env
+
+# Build mappák (amit a npm run build generál)
+dist/
+frontend/dist/
+
+# Log fájlok
+*.log
+npm-debug.log*
+
+# Operációs rendszer fájlok
+.DS_Store
+Thumbs.db
