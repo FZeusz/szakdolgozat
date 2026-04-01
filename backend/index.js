@@ -79,6 +79,193 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// Jelszó módosítása
+app.post('/api/change-password', async (req, res) => {
+    try {
+        const { userId, currentPassword, newPassword } = req.body;
+
+        if (!userId || !currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'Hiányzó adatok!' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'Az új jelszónak legalább 6 karakter hosszúnak kell lennie!' });
+        }
+
+        // Megkeressük a felhasználót és ellenőrizzük a jelenlegi jelszót
+        const user = await pool.query(
+            'SELECT * FROM users WHERE id = $1 AND password_hash = $2',
+            [userId, currentPassword]
+        );
+
+        if (user.rows.length === 0) {
+            return res.status(401).json({ message: 'A jelenlegi jelszó helytelen!' });
+        }
+
+        // Frissítjük a jelszót
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2',
+            [newPassword, userId]
+        );
+
+        res.json({ message: 'Jelszó sikeresen módosítva!' });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
+// Felhasználó törlése
+app.delete('/api/delete-account/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params; // Az URL-ből vesszük ki az ID-t
+
+        if (!userId) {
+            return res.status(400).json({ message: 'Hiányzó felhasználói azonosító!' });
+        }
+
+        // Törlés az adatbázisból
+        const result = await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'A felhasználó nem található!' });
+        }
+
+        res.json({ message: 'Fiók sikeresen törölve!' });
+
+    } catch (err) {
+        console.error("Hiba a törlésnél:", err.message);
+        res.status(500).json({ message: 'Szerver hiba történt a törlés során!' });
+    }
+});
+
+// ── KVÍZEK ──────────────────────────────────────────────────────
+
+// Saját kvízek lekérése
+app.get('/api/quizzes/my/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const result = await pool.query(
+            'SELECT * FROM quizzes WHERE owner_id = $1 ORDER BY created_at DESC',
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
+// Egyedi megosztási kód generálása (8 véletlenszerű alfanumerikus karakter)
+function generateShareCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+}
+
+// Új kvíz létrehozása
+app.post('/api/quizzes', async (req, res) => {
+    try {
+        const { owner_id, title, description, category, time_limit, is_public, access_password } = req.body;
+
+        if (!owner_id || !title) {
+            return res.status(400).json({ message: 'A kvíz neve és a tulajdonos megadása kötelező!' });
+        }
+
+        // Egyedi share_code generálása (ütközés esetén újrapróbálás)
+        let share_code;
+        let attempts = 0;
+        while (attempts < 10) {
+            const candidate = generateShareCode();
+            const existing = await pool.query('SELECT id FROM quizzes WHERE share_code = $1', [candidate]);
+            if (existing.rows.length === 0) { share_code = candidate; break; }
+            attempts++;
+        }
+        if (!share_code) return res.status(500).json({ message: 'Nem sikerült egyedi kódot generálni, próbáld újra!' });
+
+        const result = await pool.query(
+            `INSERT INTO quizzes
+               (owner_id, title, description, category, time_limit, is_public, access_password, share_code)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING *`,
+            [
+                owner_id,
+                title,
+                description  || null,
+                category     || null,
+                time_limit   || null,
+                is_public    ?? true,
+                (!is_public && access_password) ? access_password : null,
+                share_code
+            ]
+        );
+
+        res.status(201).json({ message: 'Kvíz sikeresen létrehozva!', quiz: result.rows[0] });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
+// Nyilvános kvízek lekérése (más felhasználóktól)
+app.get('/api/quizzes/public/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const result = await pool.query(
+            `SELECT q.*, u.username AS owner_name
+             FROM quizzes q
+             JOIN users u ON u.id = q.owner_id
+             WHERE q.is_public = true AND q.owner_id != $1
+             ORDER BY q.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
+// Privát kvíz keresése megosztási kód alapján
+app.get('/api/quizzes/find/:shareCode', async (req, res) => {
+    try {
+        const { shareCode } = req.params;
+        const result = await pool.query(
+            `SELECT q.id, q.title, q.description, q.category, q.time_limit,
+                    q.is_public, q.share_code, q.created_at, u.username AS owner_name
+             FROM quizzes q
+             JOIN users u ON u.id = q.owner_id
+             WHERE q.share_code = $1`,
+            [shareCode]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Nem található kvíz ezzel a kóddal.' });
+        }
+        // access_password-t NEM küldjük vissza
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
+// Kvíz törlése
+app.delete('/api/quizzes/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM quizzes WHERE id = $1 RETURNING id', [id]);
+        if (result.rowCount === 0) return res.status(404).json({ message: 'Kvíz nem található!' });
+        res.json({ message: 'Kvíz törölve!' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba történt!' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Szerver fut a http://localhost:${PORT} címen`);
 });

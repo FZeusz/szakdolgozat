@@ -566,3 +566,764 @@ input[type="password"]::-ms-clear {
   text-align: center;
   line-height: 1.4;
 }
+
+/* ════════════════════════════════════════
+   DASHBOARD – LAYOUT
+════════════════════════════════════════ */
+.dash-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.dash-navbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+  height: 57px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.dash-navbar-logo {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  font-family: Georgia, serif;
+}
+
+.dash-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), transform 0.15s;
+  letter-spacing: 0;
+}
+.avatar-btn:hover { background: var(--gold-hover); transform: scale(1.05); }
+
+.dash-logout-btn {
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+.dash-logout-btn:hover { color: var(--text); border-color: var(--muted); }
+
+.dash-layout {
+  display: flex;
+  padding-top: 57px;
+  min-height: 100vh;
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD – SIDEBAR
+════════════════════════════════════════ */
+.dash-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 12px;
+  position: fixed;
+  top: 57px; bottom: 0; left: 0;
+  overflow-y: auto;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.dash-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--btn-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  text-decoration: none;  /* NavLink esetén */
+  transition: background var(--transition), color var(--transition);
+}
+.dash-nav-item:hover {
+  background: var(--gold-subtle);
+  color: var(--text);
+}
+.dash-nav-item.active {
+  background: var(--gold-subtle);
+  color: var(--gold);
+  font-weight: 600;
+}
+.dash-nav-icon  { font-size: 17px; width: 22px; text-align: center; }
+.dash-nav-label { flex: 1; }
+
+.dash-nav-logout {
+  margin-top: 4px;
+  color: var(--error);
+  opacity: 0.75;
+}
+.dash-nav-logout:hover { background: rgba(217,79,79,0.08); color: var(--error); opacity: 1; }
+
+/* ════════════════════════════════════════
+   DASHBOARD – FŐ TARTALOM
+════════════════════════════════════════ */
+.dash-main {
+  flex: 1;
+  margin-left: 220px;
+  min-height: calc(100vh - 57px);
+  padding: 32px 36px;
+  max-width: 1100px;
+}
+
+.tab-content {
+  animation: fadeUp 0.3s ease both;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: Georgia, serif;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.page-sub {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD – STAT KÁRTYÁK
+════════════════════════════════════════ */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform 0.15s;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.stat-card-icon  { font-size: 22px; }
+.stat-card-value { font-size: 26px; font-weight: 700; color: var(--gold); font-family: Georgia, serif; letter-spacing: -0.02em; }
+.stat-card-label { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.4; }
+
+/* ════════════════════════════════════════
+   DASHBOARD – SZEKCIÓK
+════════════════════════════════════════ */
+.section { margin-bottom: 32px; }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.section-header .section-title { margin-bottom: 0; }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.link-btn:hover { color: var(--gold-hover); }
+
+/* ════════════════════════════════════════
+   DASHBOARD – EREDMÉNY LISTA
+════════════════════════════════════════ */
+.result-list {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  gap: 16px;
+  transition: background var(--transition);
+}
+.result-row:not(:last-child) { border-bottom: 1px solid var(--border-light); }
+.result-row:hover { background: var(--surface-2); }
+
+.result-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.result-name { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-date { font-size: 12px; color: var(--muted); }
+
+.result-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.result-score { font-size: 13px; font-weight: 600; color: var(--btn-muted); white-space: nowrap; min-width: 90px; text-align: right; }
+
+.pct-bar-wrap  { width: 120px; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.pct-bar       { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+.pct-bar-wrap.flex1 { flex: 1; }
+
+/* ════════════════════════════════════════
+   DASHBOARD – KVÍZ GRID
+════════════════════════════════════════ */
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.quiz-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform 0.15s;
+}
+.quiz-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.quiz-card-top    { display: flex; align-items: center; justify-content: space-between; }
+.quiz-card-title  { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; flex: 1; }
+.quiz-card-meta   { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+.quiz-card-author { font-size: 12px; color: var(--muted); }
+.quiz-card-btn    { margin-top: 6px; }
+
+.cat-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.stars       { display: flex; align-items: center; gap: 1px; font-size: 13px; }
+.stars-num   { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+/* ════════════════════════════════════════
+   DASHBOARD – SAJÁT KVÍZEK
+════════════════════════════════════════ */
+.my-quiz-list {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.my-quiz-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  transition: background var(--transition);
+}
+.my-quiz-row:not(:last-child) { border-bottom: 1px solid var(--border-light); }
+.my-quiz-row:hover { background: var(--surface-2); }
+
+.my-quiz-left  { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.my-quiz-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.my-quiz-meta  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.my-quiz-stats { display: flex; gap: 20px; flex-shrink: 0; }
+.mqs-item      { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.mqs-val       { font-size: 15px; font-weight: 700; color: var(--gold); }
+.mqs-lbl       { font-size: 11px; color: var(--muted); }
+
+.my-quiz-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.icon-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.icon-btn:hover { background: var(--gold-subtle); border-color: var(--border); }
+
+/* ════════════════════════════════════════
+   DASHBOARD – FELFEDEZÉS szűrők
+════════════════════════════════════════ */
+.explore-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.search-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  width: 100%;
+  max-width: 420px;
+}
+.search-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-subtle);
+}
+
+.cat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cat-btn {
+  padding: 5px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--btn-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.cat-btn:hover { border-color: var(--gold); color: var(--text); }
+.cat-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+.no-result { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+/* ════════════════════════════════════════
+   EXPLORE – PRIVÁT KER ESÉS
+════════════════════════════════════════ */
+.private-find-box {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.private-find-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.private-find-icon { font-size: 22px; margin-top: 2px; }
+.private-find-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.private-find-sub   { font-size: 13px; color: var(--muted); }
+
+.private-find-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.private-find-result {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+  max-width: 320px;
+}
+
+/* ════════════════════════════════════════
+   QUIZZES – MEGOSZTÁSI KÓD GOMB
+════════════════════════════════════════ */
+.share-code-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  background: var(--gold-subtle) !important;
+  border-color: var(--gold) !important;
+  color: var(--gold) !important;
+  font-weight: 600;
+  padding: 5px 10px !important;
+}
+.share-code-text { font-size: 13px; }
+
+.quiz-card-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD – STATISZTIKA DIAGRAMOK
+════════════════════════════════════════ */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.stats-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 140px;
+  padding-top: 8px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.bar-wrap {
+  flex: 1;
+  width: 100%;
+  background: var(--border-light);
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--gold);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+  min-height: 4px;
+}
+
+.bar-label { font-size: 11px; color: var(--muted); }
+.bar-val   { font-size: 12px; font-weight: 600; color: var(--btn-muted); }
+
+.cat-perf-list { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.cat-perf-row  { display: flex; align-items: center; gap: 10px; }
+.cat-perf-name { font-size: 13px; font-weight: 600; min-width: 90px; }
+.cat-perf-pct  { font-size: 13px; font-weight: 600; color: var(--btn-muted); min-width: 36px; text-align: right; }
+
+/* ════════════════════════════════════════
+   DASHBOARD – PROFIL
+════════════════════════════════════════ */
+.profile-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.profile-side {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 80px;
+}
+
+.avatar-big {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  box-shadow: 0 4px 12px rgba(200,169,110,0.35);
+}
+
+.profile-side-name  { font-size: 15px; font-weight: 700; color: var(--text); }
+.profile-side-email { font-size: 12px; color: var(--muted); }
+
+.profile-side-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  width: 100%;
+  justify-content: center;
+}
+.pss-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.pss-val  { font-size: 16px; font-weight: 700; color: var(--gold); }
+.pss-lbl  { font-size: 11px; color: var(--muted); }
+
+.profile-main { display: flex; flex-direction: column; gap: 20px; }
+
+.profile-section-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 18px;
+}
+
+.profile-danger-text { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+
+.danger-card { border-color: rgba(217, 79, 79, 0.25); }
+
+/* ════════════════════════════════════════
+   DASHBOARD – GOMBOK
+════════════════════════════════════════ */
+.dash-btn-primary {
+  padding: 10px 20px;
+  background: var(--gold);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), transform 0.15s;
+  white-space: nowrap;
+}
+.dash-btn-primary:hover { background: var(--gold-hover); transform: translateY(-1px); }
+
+.dash-btn-outline {
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--btn-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.dash-btn-outline:hover { color: var(--text); border-color: var(--muted); }
+
+.dash-btn-danger {
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--error);
+  border: 1px solid rgba(217,79,79,0.4);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.dash-btn-danger:hover { background: rgba(217,79,79,0.08); border-color: var(--error); }
+
+/* ════════════════════════════════════════
+   DASHBOARD – KVÍZ LÉTREHOZÁS
+════════════════════════════════════════ */
+.create-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 560px;
+  box-shadow: var(--shadow-sm);
+}
+
+.field-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+.field-select:focus { border-color: var(--gold); }
+
+.field-textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+}
+.field-textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-subtle);
+}
+.field-textarea::placeholder { color: var(--muted); opacity: 0.5; }
+
+.field-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
+.create-row {
+  display: flex;
+  gap: 16px;
+}
+
+.visibility-toggle {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.vis-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--btn-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.vis-btn:hover { border-color: var(--gold); color: var(--text); }
+.vis-btn.active {
+  background: var(--gold-subtle);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.create-questions-placeholder {
+  background: var(--surface-2);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD – ÜRES ÁLLAPOT
+════════════════════════════════════════ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.empty-icon { font-size: 40px; }
