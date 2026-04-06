@@ -10,34 +10,25 @@ export default function DashboardQuizzes() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
-  // Kvízek betöltése
   const loadQuizzes = async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await fetch(`http://localhost:5000/api/quizzes/my/${user?.id}`);
       if (!res.ok) throw new Error();
-      const data = await res.json();
-      setQuizzes(data);
-    } catch {
-      setError('Nem sikerült betölteni a kvízeket.');
-    } finally {
-      setLoading(false);
-    }
+      setQuizzes(await res.json());
+    } catch { setError('Nem sikerült betölteni a kvízeket.'); }
+    finally  { setLoading(false); }
   };
 
   useEffect(() => { loadQuizzes(); }, []);
 
-  // Kvíz törlése
   const handleDelete = async (id, title) => {
     if (!window.confirm(`Biztosan törlöd a következő kvízt?\n„${title}"`)) return;
     try {
       const res = await fetch(`http://localhost:5000/api/quizzes/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       setQuizzes(prev => prev.filter(q => q.id !== id));
-    } catch {
-      alert('Törlés sikertelen, próbáld újra!');
-    }
+    } catch { alert('Törlés sikertelen, próbáld újra!'); }
   };
 
   return (
@@ -54,8 +45,7 @@ export default function DashboardQuizzes() {
 
       {loading && (
         <div className="empty-state">
-          <span className="empty-icon">⏳</span>
-          <p>Betöltés...</p>
+          <span className="empty-icon">⏳</span><p>Betöltés...</p>
         </div>
       )}
 
@@ -84,10 +74,8 @@ export default function DashboardQuizzes() {
             <div key={q.id} className="my-quiz-row">
               <div className="my-quiz-left">
                 {q.category && (
-                  <span
-                    className="cat-badge"
-                    style={{ background: catColor(q.category) + '22', color: catColor(q.category) }}
-                  >
+                  <span className="cat-badge"
+                    style={{ background: catColor(q.category) + '22', color: catColor(q.category) }}>
                     {q.category}
                   </span>
                 )}
@@ -95,7 +83,10 @@ export default function DashboardQuizzes() {
                   <div className="my-quiz-title">{q.title}</div>
                   <div className="my-quiz-meta">
                     {q.is_public ? '🌐 Nyilvános' : '🔒 Privát'}
+                    {q.one_attempt ? ' · 1️⃣ Egyszer tölthető' : ''}
                     {q.time_limit ? ` · ⏱ ${Math.round(q.time_limit / 60)} perc` : ''}
+                    {` · ${q.question_count ?? 0} kérdés`}
+                    {` · ${q.play_count ?? 0} kitöltés`}
                     {' · '}
                     {new Date(q.created_at).toLocaleDateString('hu-HU')}
                   </div>
@@ -103,19 +94,33 @@ export default function DashboardQuizzes() {
               </div>
 
               <div className="my-quiz-actions">
+                {/* Szerkesztés */}
+                <button className="icon-btn" title="Kérdések szerkesztése"
+                  onClick={() => navigate(`/dashboard/quizzes/${q.id}/edit`)}>
+                  ✏️
+                </button>
+
+                {/* Statisztikák */}
+                <button className="icon-btn" title="Statisztikák megtekintése"
+                  onClick={() => navigate(`/dashboard/quizzes/${q.id}/stats`)}>
+                  📊
+                </button>
+
+                {/* Megosztási kód (privát) */}
                 {!q.is_public && q.share_code && (
-                  <button
-                    className="icon-btn share-code-btn"
+                  <button className="icon-btn share-code-btn"
                     title={`Megosztási kód: ${q.share_code} – kattints a másoláshoz`}
                     onClick={() => {
                       navigator.clipboard.writeText(q.share_code);
                       alert(`Kód másolva: ${q.share_code}\n\nOszd meg azokkal, akiknek hozzáférést szeretnél adni.`);
-                    }}
-                  >
+                    }}>
                     🔑 <span className="share-code-text">{q.share_code}</span>
                   </button>
                 )}
-                <button className="icon-btn" title="Törlés" onClick={() => handleDelete(q.id, q.title)}>
+
+                {/* Törlés */}
+                <button className="icon-btn" title="Törlés"
+                  onClick={() => handleDelete(q.id, q.title)}>
                   🗑️
                 </button>
               </div>

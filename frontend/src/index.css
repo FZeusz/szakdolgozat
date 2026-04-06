@@ -1327,3 +1327,485 @@ input[type="password"]::-ms-clear {
   font-size: 14px;
 }
 .empty-icon { font-size: 40px; }
+
+/* ════════════════════════════════════════
+   KVÍZ SZERKESZTŐ
+════════════════════════════════════════ */
+.editor-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.editor-q-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition);
+}
+.editor-q-card--new {
+  border: 2px dashed var(--gold);
+  background: var(--gold-subtle);
+}
+
+.editor-q-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.editor-q-num        { font-size: 13px; font-weight: 700; color: var(--gold); min-width: 22px; }
+.editor-q-type-badge { font-size: 11px; background: var(--gold-subtle); color: var(--gold);
+                       padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.editor-q-text   { font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+.editor-q-answers { display: flex; flex-wrap: wrap; gap: 8px; }
+.editor-a-chip {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--btn-muted);
+}
+.editor-a-chip.correct {
+  background: rgba(58,158,90,0.12);
+  border-color: var(--success);
+  color: var(--success);
+  font-weight: 600;
+}
+.editor-a-tick { margin-right: 4px; }
+
+.editor-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  max-width: 720px;
+}
+.editor-add-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-subtle);
+}
+
+/* Kérdés form */
+.qform { display: flex; flex-direction: column; gap: 14px; }
+.qform-type-row { display: flex; gap: 8px; }
+
+.answers-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.answer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  transition: border-color var(--transition);
+}
+.answer-row.correct {
+  border-color: var(--success);
+  background: rgba(58,158,90,0.06);
+}
+
+.correct-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.correct-dot.active {
+  background: var(--success);
+  border-color: var(--success);
+}
+.correct-dot:hover { border-color: var(--success); }
+
+.answer-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+}
+.answer-static { flex: 1; font-size: 14px; color: var(--text); }
+
+/* Tobbvalasztos checkbox a szerkesztoben */
+.qform-multi-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--gold-subtle);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.qform-multi-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--btn-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.qform-multi-hint {
+  font-size: 12px;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+.correct-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.15s;
+}
+.correct-checkbox.active {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.correct-checkbox:hover { border-color: var(--success); }
+
+/* Tobbvalasztos badge es checkbox a kitoltokban */
+.tq-multi-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gold);
+  margin-left: 4px;
+}
+
+.tq-answer-btn.multi {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tq-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: transparent;
+  transition: all 0.15s;
+}
+.tq-answer-btn.selected .tq-checkbox {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+/* ════════════════════════════════════════
+   KVÍZ KITÖLTŐ
+════════════════════════════════════════ */
+.tq-root {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.tq-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.tq-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 36px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.tq-lock-icon   { font-size: 36px; }
+.tq-card-title  { font-size: 22px; font-weight: 700; color: var(--text); font-family: Georgia, serif; letter-spacing: -0.02em; }
+.tq-card-sub    { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+.tq-intro-meta {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--muted);
+  padding: 12px 0;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  width: 100%;
+}
+
+/* Fejléc kitöltés közben */
+.tq-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+.tq-header-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tq-progress-text { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+.tq-progress-bar-wrap { height: 3px; background: var(--border); }
+.tq-progress-bar      { height: 100%; background: var(--gold); transition: width 0.3s ease; }
+
+/* Időmérő */
+.tq-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--btn-muted);
+}
+.tq-timer.urgent { color: var(--error); }
+.tq-timer-icon  { font-size: 14px; }
+.tq-timer-text  { min-width: 38px; }
+.tq-timer-bar-wrap { width: 80px; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.tq-timer-bar      { height: 100%; border-radius: 99px; transition: width 1s linear; }
+
+/* Kérdés kártya */
+.tq-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px 24px;
+  gap: 24px;
+}
+
+.tq-q-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+}
+.tq-q-num  { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.tq-q-text { font-size: 18px; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 20px; }
+
+.tq-answers { display: flex; flex-direction: column; gap: 10px; }
+.tq-answer-btn {
+  padding: 13px 18px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+.tq-answer-btn:hover  { border-color: var(--gold); background: var(--gold-subtle); }
+.tq-answer-btn.selected {
+  border-color: var(--gold);
+  background: var(--gold-subtle);
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* Navigáció */
+.tq-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+  justify-content: space-between;
+}
+.tq-answered-hint { font-size: 13px; color: var(--muted); }
+
+.tq-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  max-width: 640px;
+}
+.tq-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+}
+.tq-dot.answered { background: var(--gold-subtle); border-color: var(--gold); }
+.tq-dot.active   { background: var(--gold); border-color: var(--gold); }
+
+/* Eredmény */
+.tq-result-card { gap: 16px; }
+.tq-result-emoji { font-size: 44px; }
+.tq-result-circle {
+  width: 110px; height: 110px;
+  border-radius: 50%;
+  border: 4px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+.tq-result-pct  { font-size: 26px; font-weight: 700; font-family: Georgia, serif; }
+.tq-result-frac { font-size: 13px; color: var(--muted); }
+.tq-result-msg  { font-size: 16px; font-weight: 600; }
+
+.tq-review {
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid var(--border-light);
+  padding-top: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.tq-review-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.tq-review-q {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+.tq-review-num  { color: var(--muted); min-width: 20px; }
+.tq-review-icon { margin-left: auto; flex-shrink: 0; }
+.tq-review-detail {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  padding-left: 28px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.tq-wrong-ans   { color: var(--error); }
+.tq-correct-ans { color: var(--success); font-weight: 600; }
+
+.tq-rate-box {
+  width: 100%;
+  border-top: 1px solid var(--border-light);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.tq-rate-label { font-size: 14px; font-weight: 500; color: var(--btn-muted); }
+.tq-rated-msg  { font-size: 13px; color: var(--success); }
+
+.star-rater { display: flex; gap: 4px; }
+.star-btn {
+  font-size: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--border);
+  transition: color 0.1s, transform 0.1s;
+  padding: 0 2px;
+  line-height: 1;
+}
+.star-btn.active { color: var(--gold); }
+.star-btn:hover  { transform: scale(1.2); }
+
+/* Szoveges valasz mezo a kitoltokben */
+.tq-text-input-wrap {
+  margin-top: 8px;
+}
+.tq-text-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.tq-text-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-subtle);
+}
+.tq-text-input::placeholder { color: var(--muted); opacity: 0.6; }
+
+/* Jelszo erosség jelzo */
+.pw-strength-list {
+  list-style: none;
+  margin: 8px 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pw-strength-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.pw-strength-item.ok   { color: var(--success); }
+.pw-strength-item.fail { color: var(--error); }
+.pw-strength-icon {
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}

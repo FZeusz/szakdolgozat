@@ -14,6 +14,10 @@ import DashboardExplore from './pages/dashboard/Explore';
 import DashboardStats   from './pages/dashboard/Stats';
 import DashboardProfile from './pages/dashboard/Profile';
 import DashboardCreate  from './pages/dashboard/Create';
+import DashboardAdmin   from './pages/dashboard/Admin';
+import QuizEditor       from './pages/dashboard/QuizEditor';
+import QuizStats        from './pages/dashboard/QuizStats';
+import TakeQuiz         from './pages/TakeQuiz';
 
 // ── Témaváltó gomb ────────────────────────────────────────────────
 function ThemeToggle() {
@@ -45,17 +49,6 @@ function ThemeToggle() {
   );
 }
 
-// ── Route struktúra ───────────────────────────────────────────────
-// A /dashboard egy layout route (navbar + sidebar).
-// A gyerek route-ok az <Outlet /> helyére töltődnek.
-//
-//   /dashboard            → DashboardHome    (index route)
-//   /dashboard/quizzes    → DashboardQuizzes
-//   /dashboard/explore    → DashboardExplore
-//   /dashboard/stats      → DashboardStats
-//   /dashboard/profile    → DashboardProfile
-//   /dashboard/create     → DashboardCreate
-// ─────────────────────────────────────────────────────────────────
 function App() {
   return (
     <BrowserRouter>
@@ -72,8 +65,14 @@ function App() {
           <Route path="explore"  element={<DashboardExplore />} />
           <Route path="stats"    element={<DashboardStats   />} />
           <Route path="profile"  element={<DashboardProfile />} />
-          <Route path="create"   element={<DashboardCreate  />} />
+          <Route path="create"            element={<DashboardCreate  />} />
+          <Route path="admin"             element={<DashboardAdmin   />} />
+          <Route path="quizzes/:id/edit"  element={<QuizEditor />} />
+          <Route path="quizzes/:id/stats" element={<QuizStats  />} />
         </Route>
+
+        {/* Kvíz kitöltése */}
+        <Route path="/quiz/:id" element={<TakeQuiz />} />
       </Routes>
     </BrowserRouter>
   );

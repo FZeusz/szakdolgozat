@@ -1,6 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
-// Navigációs elemek: path a route-hoz, end=true hogy /dashboard pontosan aktív legyen
 const NAV_ITEMS = [
   { path: '/dashboard',         icon: '🏠', label: 'Főoldal',      end: true  },
   { path: '/dashboard/quizzes', icon: '📝', label: 'Saját kvízek', end: false },
@@ -13,6 +12,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
   const initials = (user?.username || 'U').slice(0, 2).toUpperCase();
+  const isAdmin = user?.role === 'ADMIN';
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -28,6 +28,13 @@ export default function Dashboard() {
           Alkalmazás neve
         </span>
         <div className="dash-navbar-right">
+          {isAdmin && (
+            <span style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 99,
+              background: 'rgba(200,169,110,0.2)', color: 'var(--gold)',
+              fontWeight: 700, letterSpacing: '0.03em',
+            }}>👑 ADMIN</span>
+          )}
           <button className="avatar-btn" onClick={() => navigate('/dashboard/profile')} title="Profil">
             {initials}
           </button>
@@ -55,6 +62,20 @@ export default function Dashboard() {
                 <span className="dash-nav-label">{item.label}</span>
               </NavLink>
             ))}
+
+            {/* Admin link – csak adminoknak */}
+            {isAdmin && (
+              <NavLink
+                to="/dashboard/admin"
+                className={({ isActive }) =>
+                  `dash-nav-item ${isActive ? 'active' : ''}`
+                }
+                style={{ color: 'var(--gold)' }}
+              >
+                <span className="dash-nav-icon">👑</span>
+                <span className="dash-nav-label">Admin panel</span>
+              </NavLink>
+            )}
           </nav>
           <button className="dash-nav-item dash-nav-logout" onClick={handleLogout}>
             <span className="dash-nav-icon">🚪</span>
@@ -62,7 +83,7 @@ export default function Dashboard() {
           </button>
         </aside>
 
-        {/* ── FŐ TARTALOM – ide töltődnek be a gyerek route-ok ── */}
+        {/* ── FŐ TARTALOM ── */}
         <main className="dash-main">
           <Outlet />
         </main>
