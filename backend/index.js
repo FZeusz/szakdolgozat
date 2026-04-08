@@ -12,11 +12,6 @@ app.use(express.json());
 app.get('/', (req, res) => res.send('A szerver el es mozog!'));
 
 // ── SÉMA MIGRÁCIÓK (induláskor fut le) ───────────────────────────
-// Az adatbázis valódi sémája alapján:
-//   answer_options: id, question_id, text, is_correct
-//   attempt_answers: id, attempt_id, question_id, answer_option_id (NOT NULL!), answer_id (nullable), text_answer
-//   questions: id, quiz_id, text, question_type, question_order, points (NOT NULL)
-//   quiz_attempts: id, quiz_id, user_id, score, total_questions, started_at, completed_at
 async function runMigrations() {
     const migrations = [
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS pass_score INT DEFAULT NULL`,
@@ -26,10 +21,23 @@ async function runMigrations() {
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS one_attempt BOOLEAN DEFAULT FALSE`,
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS shuffle_questions BOOLEAN DEFAULT FALSE`,
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS access_password VARCHAR DEFAULT NULL`,
+        // total_points: a kitöltéskori összpontszám – így visszamenőleg is helyes lesz a megjelenítés
+        `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS total_points INT DEFAULT NULL`,
     ];
     for (const sql of migrations) {
         try { await pool.query(sql); } catch(e) { /* mar letezik */ }
     }
+
+    // Régi attempt soroknál total_points = total_questions (1 pont/kérdés volt)
+    // Csak azokat frissítjük ahol total_points még NULL
+    try {
+        await pool.query(`
+            UPDATE quiz_attempts
+            SET total_points = total_questions
+            WHERE total_points IS NULL AND total_questions IS NOT NULL
+        `);
+    } catch(e) { /* ha nem sikerül, nem baj */ }
+
     console.log('Migraciok lefutottak.');
 }
 runMigrations();
@@ -146,10 +154,9 @@ app.get('/api/quizzes/my/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const result = await pool.query(
-            `SELECT q.*,
-                    COUNT(DISTINCT qu.id)::int AS question_count
+            `SELECT q.*, COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
-             LEFT JOIN questions qu ON qu.quiz_id = q.id
+             LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              WHERE q.owner_id = $1
              GROUP BY q.id
              ORDER BY q.created_at DESC`,
@@ -165,12 +172,10 @@ app.get('/api/quizzes/my/:userId', async (req, res) => {
 app.get('/api/admin/quizzes', async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT q.*,
-                    u.username AS owner_name,
-                    COUNT(DISTINCT qu.id)::int AS question_count
+            `SELECT q.*, u.username AS owner_name, COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
              JOIN users u ON u.id = q.owner_id
-             LEFT JOIN questions qu ON qu.quiz_id = q.id
+             LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              GROUP BY q.id, u.username
              ORDER BY q.created_at DESC`
         );
@@ -193,7 +198,7 @@ app.get('/api/quizzes/:id', async (req, res) => {
                     COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
              JOIN users u ON u.id = q.owner_id
-             LEFT JOIN questions qu ON qu.quiz_id = q.id
+             LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              WHERE q.id = $1
              GROUP BY q.id, u.username`,
             [id]
@@ -211,10 +216,7 @@ app.put('/api/quizzes/:id/pass-score', async (req, res) => {
     try {
         const { id } = req.params;
         const { pass_score } = req.body;
-        await pool.query(
-            'UPDATE quizzes SET pass_score = $1 WHERE id = $2',
-            [pass_score ?? null, id]
-        );
+        await pool.query('UPDATE quizzes SET pass_score = $1 WHERE id = $2', [pass_score ?? null, id]);
         res.json({ message: 'Pass score frissitve!', pass_score: pass_score ?? null });
     } catch (err) {
         console.error(err.message);
@@ -232,8 +234,10 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
         if (quizResult.rows.length === 0)
             return res.status(404).json({ message: 'Kviz nem talalhato!' });
 
+        // total_points is lekérjük – a kitöltéskori összpontszámot tartalmazza
         const attemptsResult = await pool.query(
             `SELECT qa.id, qa.score, qa.total_questions,
+                    GREATEST(COALESCE(qa.total_points, qa.total_questions), qa.score) AS total_points,
                     qa.completed_at AS finished_at,
                     u.username, u.id AS user_id
              FROM quiz_attempts qa
@@ -243,10 +247,10 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
             [id]
         );
 
-        // Kérdések + answer_options (valódi táblanév!)
+        // Kérdések + answer_options
         const questionsResult = await pool.query(
             `SELECT id, text AS question_text, question_type, COALESCE(points, 1) AS points
-             FROM questions WHERE quiz_id = $1 ORDER BY question_order, id`,
+             FROM questions WHERE quiz_id = $1 AND is_active = true ORDER BY question_order, id`,
             [id]
         );
         const questions = await Promise.all(questionsResult.rows.map(async (q) => {
@@ -257,54 +261,83 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
             return { ...q, answers: aResult.rows };
         }));
 
-        const totalPoints = questions.reduce((s, q) => s + (q.points || 1), 0);
+        // Jelenlegi összpontszám (az aktuális kérdések alapján)
+        const currentTotalPoints = questions.reduce((s, q) => s + (q.points || 1), 0);
 
-        // Részletes válaszok – answer_option_id alapján
+        // Részletes válaszok
         let attemptAnswers = {};
         try {
             const aaResult = await pool.query(
-                `SELECT aa.attempt_id, aa.question_id,
-                        aa.answer_option_id,
-                        aa.text_answer
+                `SELECT aa.attempt_id, aa.question_id, aa.text_answer,
+                        aa.points_awarded, aa.points_possible,
+                        q.text AS question_text, q.question_type,
+                        ao.text AS chosen_answer_text,
+                        (SELECT string_agg(a.text, ', ') FROM answer_options a WHERE a.question_id = q.id AND a.is_correct = true) as correct_answers_text
                  FROM attempt_answers aa
                  JOIN quiz_attempts qa ON qa.id = aa.attempt_id
-                 WHERE qa.quiz_id = $1`,
+                 LEFT JOIN questions q ON q.id = aa.question_id
+                 LEFT JOIN answer_options ao ON ao.id = aa.answer_option_id
+                 WHERE qa.quiz_id = $1
+                 ORDER BY q.question_order, aa.question_id`,
                 [id]
             );
             aaResult.rows.forEach(row => {
-                if (!attemptAnswers[row.attempt_id]) attemptAnswers[row.attempt_id] = [];
-                attemptAnswers[row.attempt_id].push({
-                    question_id:    row.question_id,
-                    answer_id:      row.answer_option_id,   // frontend answer_id-t vár
-                    text_answer:    row.text_answer,
-                });
+                if (!attemptAnswers[row.attempt_id]) attemptAnswers[row.attempt_id] = {};
+                if (!attemptAnswers[row.attempt_id][row.question_id]) {
+                    attemptAnswers[row.attempt_id][row.question_id] = {
+                        question_id: row.question_id,
+                        question_text: row.question_text || 'Régebbi kvíz verzió kérdése',
+                        question_type: row.question_type,
+                        points_awarded: row.points_awarded, // lehet null, ha régi kitöltés
+                        points_possible: row.points_possible,
+                        text_answer: row.text_answer,
+                        chosen_texts: [],
+                        correct_answers_text: row.correct_answers_text || ''
+                    };
+                }
+                if (row.chosen_answer_text) {
+                    attemptAnswers[row.attempt_id][row.question_id].chosen_texts.push(row.chosen_answer_text);
+                }
             });
         } catch (e) {
             console.error('attempt_answers lekérési hiba:', e.message);
-            attemptAnswers = {};
         }
 
-        const attempts = attemptsResult.rows.map(a => ({
-            id:              a.id,
-            username:        a.username || 'Névtelen',
-            user_id:         a.user_id,
-            score:           a.score,
-            total_questions: a.total_questions,
-            percentage:      a.total_questions > 0
-                             ? Math.round((a.score / a.total_questions) * 100) : 0,
-            finished_at:     a.finished_at,
-            answers:         attemptAnswers[a.id] || [],
-        }));
+        const attempts = attemptsResult.rows.map(a => {
+            // total_points: kitöltéskori összpontszám (lehet hogy akkor még 1 pont/kérdés volt)
+            let tp  = a.total_points || a.total_questions || 1;
+            // FIX: Ha migrációs hiba miatt a total_points kisebb mint a score, vagy megegyezik a kérdések számával
+            // de a jelenlegi összpont nagyobb, akkor korrigáljuk:
+            if (tp === a.total_questions && currentTotalPoints > tp) {
+                tp = currentTotalPoints;
+            }
+            if (tp < a.score) {
+                tp = currentTotalPoints;
+            }
+            
+            const pct = tp > 0 ? Math.round((a.score / tp) * 100) : 0;
+            return {
+                id:              a.id,
+                username:        a.username || 'Névtelen',
+                user_id:         a.user_id,
+                score:           a.score,
+                total_questions: a.total_questions,
+                total_points:    tp,
+                percentage:      pct,
+                finished_at:     a.finished_at,
+                answers:         attemptAnswers[a.id] ? Object.values(attemptAnswers[a.id]) : [],
+            };
+        });
 
         const avgPct = attempts.length > 0
             ? Math.round(attempts.reduce((s, a) => s + a.percentage, 0) / attempts.length)
             : 0;
 
         res.json({
-            quiz:     { ...quizResult.rows[0], total_points: totalPoints },
+            quiz:    { ...quizResult.rows[0], total_points: currentTotalPoints },
             attempts,
             questions,
-            summary:  { total_attempts: attempts.length, avg_percentage: avgPct },
+            summary: { total_attempts: attempts.length, avg_percentage: avgPct },
         });
     } catch (err) {
         console.error(err.message);
@@ -400,7 +433,7 @@ app.get('/api/quizzes/public/:userId', async (req, res) => {
                     COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
              JOIN users u ON u.id = q.owner_id
-             LEFT JOIN questions qu ON qu.quiz_id = q.id
+             LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              WHERE q.is_public = true AND q.owner_id != $1
              GROUP BY q.id, u.username
              ORDER BY q.created_at DESC`,
@@ -423,7 +456,7 @@ app.get('/api/quizzes/find/:shareCode', async (req, res) => {
                     COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
              JOIN users u ON u.id = q.owner_id
-             LEFT JOIN questions qu ON qu.quiz_id = q.id
+             LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              WHERE q.share_code = $1
              GROUP BY q.id, u.username`,
             [shareCode]
@@ -451,8 +484,6 @@ app.delete('/api/quizzes/:id', async (req, res) => {
 });
 
 // ── KERDESEK ─────────────────────────────────────────────────────
-// Valódi séma: answer_options (nem answers!)
-//   answer_options: id, question_id, text, is_correct
 
 app.get('/api/quizzes/:id/questions', async (req, res) => {
     try {
@@ -460,7 +491,7 @@ app.get('/api/quizzes/:id/questions', async (req, res) => {
         const qResult = await pool.query(
             `SELECT id, quiz_id, text AS question_text, question_type,
                     COALESCE(points, 1) AS points, question_order
-             FROM questions WHERE quiz_id = $1 ORDER BY question_order, id`,
+             FROM questions WHERE quiz_id = $1 AND is_active = true ORDER BY question_order, id`,
             [id]
         );
         const questions = await Promise.all(qResult.rows.map(async (q) => {
@@ -499,7 +530,6 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
                 return res.status(400).json({ message: 'Legalabb egy helyes valaszt meg kell jelolni!' });
         }
 
-        // Következő question_order meghatározása
         const orderRes = await pool.query(
             'SELECT COALESCE(MAX(question_order), 0) + 1 AS next_order FROM questions WHERE quiz_id = $1',
             [id]
@@ -515,7 +545,6 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
         );
         const question = qResult.rows[0];
 
-        // answer_options tábla (nem answers!)
         const savedAnswers = await Promise.all(answers.map(a =>
             pool.query(
                 'INSERT INTO answer_options (question_id, text, is_correct) VALUES ($1,$2,$3) RETURNING id, question_id, text AS answer_text, is_correct',
@@ -552,17 +581,22 @@ app.put('/api/questions/:id', async (req, res) => {
                 return res.status(400).json({ message: 'Legalabb egy helyes valaszt meg kell jelolni!' });
         }
 
-        await pool.query(
-            'UPDATE questions SET text=$1, question_type=$2, points=$3 WHERE id=$4',
-            [question_text, qType, pts, id]
-        );
+        const oldQ = await pool.query('SELECT quiz_id, question_order FROM questions WHERE id = $1', [id]);
+        if (oldQ.rows.length === 0) return res.status(404).json({ message: 'Kerdes nem talalhato!' });
+        const { quiz_id, question_order } = oldQ.rows[0];
 
-        // answer_options törlése és újramentése
-        await pool.query('DELETE FROM answer_options WHERE question_id = $1', [id]);
+        await pool.query('UPDATE questions SET is_active = false WHERE id = $1', [id]);
+
+        const newQ = await pool.query(
+            'INSERT INTO questions (quiz_id, text, question_type, points, question_order, is_active) VALUES ($1, $2, $3, $4, $5, true) RETURNING id',
+            [quiz_id, question_text, qType, pts, question_order]
+        );
+        const newId = newQ.rows[0].id;
+
         const savedAnswers = await Promise.all(answers.map(a =>
             pool.query(
                 'INSERT INTO answer_options (question_id, text, is_correct) VALUES ($1,$2,$3) RETURNING id, question_id, text AS answer_text, is_correct',
-                [id, a.answer_text, a.is_correct ?? true]
+                [newId, a.answer_text, a.is_correct ?? true]
             ).then(r => r.rows[0])
         ));
 
@@ -570,7 +604,7 @@ app.put('/api/questions/:id', async (req, res) => {
             `SELECT id, quiz_id, text AS question_text, question_type,
                     COALESCE(points, 1) AS points, question_order
              FROM questions WHERE id=$1`,
-            [id]
+            [newId]
         );
         res.json({ ...qResult.rows[0], answers: savedAnswers });
     } catch (err) {
@@ -582,7 +616,7 @@ app.put('/api/questions/:id', async (req, res) => {
 app.delete('/api/questions/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        await pool.query('DELETE FROM questions WHERE id = $1', [id]);
+        await pool.query('UPDATE questions SET is_active = false WHERE id = $1', [id]);
         res.json({ message: 'Kerdes torolve!' });
     } catch (err) {
         console.error(err.message);
@@ -595,8 +629,6 @@ app.put('/api/quizzes/:id/questions/reorder', async (req, res) => {
 });
 
 // ── KITOLTES ─────────────────────────────────────────────────────
-// attempt_answers valódi sémája:
-//   attempt_id, question_id, answer_option_id (NOT NULL!), text_answer
 
 app.post('/api/quizzes/:id/submit', async (req, res) => {
     try {
@@ -618,9 +650,8 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
                 return res.status(403).json({ message: 'Ezt a kvízt már kitöltötted, csak egyszer lehet!' });
         }
 
-        // Kérdések lekérése pontokkal
         const questionsResult = await pool.query(
-            'SELECT id, question_type, COALESCE(points, 1) AS points FROM questions WHERE quiz_id = $1',
+            'SELECT id, question_type, COALESCE(points, 1) AS points FROM questions WHERE quiz_id = $1 AND is_active = true',
             [id]
         );
         const questionMap = {};
@@ -628,7 +659,6 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
             questionMap[q.id] = { type: q.question_type, points: q.points || 1 };
         });
 
-        // Helyes válaszok lekérése – answer_options táblából
         const correctResult = await pool.query(
             `SELECT ao.id, ao.question_id, ao.text FROM answer_options ao
              JOIN questions q ON q.id = ao.question_id
@@ -636,8 +666,8 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
             [id]
         );
 
-        const correctMap     = {};  // question_id -> Set(answer_option_id)
-        const correctTextMap = {};  // question_id -> correct text (text_input)
+        const correctMap     = {};
+        const correctTextMap = {};
         correctResult.rows.forEach(r => {
             const qType = questionMap[r.question_id]?.type;
             if (qType === 'text_input') {
@@ -652,6 +682,7 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
         const totalPoints    = questionsResult.rows.reduce((s, q) => s + (q.points || 1), 0);
         let earnedPoints = 0;
         let correctCount = 0;
+        const questionScores = {};
 
         (userAnswers || []).forEach(ua => {
             const qInfo = questionMap[ua.question_id];
@@ -676,31 +707,24 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
                 if (allCorrectChosen && noWrongChosen) isCorrect = true;
             }
 
+            let awarded = 0;
             if (isCorrect) {
                 correctCount++;
                 earnedPoints += points;
+                awarded = points;
             }
+            questionScores[ua.question_id] = awarded;
         });
 
-        // Kitöltés mentése
+        // total_points mentése: kitöltéskori összpontszám
         const insertRes = await pool.query(
-            `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_questions, completed_at)
-             VALUES ($1,$2,$3,$4, NOW()) RETURNING id`,
-            [id, user_id || null, earnedPoints, totalQuestions]
+            `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_questions, total_points, completed_at)
+             VALUES ($1,$2,$3,$4,$5, NOW()) RETURNING id`,
+            [id, user_id || null, earnedPoints, totalQuestions, totalPoints]
         );
         const attemptId = insertRes.rows[0].id;
 
-        // Részletes válaszok mentése – answer_option_id (NOT NULL!) kezelése
-        // Szöveges kérdéseknél 0-t írunk helyőrzőként (nincs answer_option_id)
-        // Ezért a szöveges kérdéseknél egy sentinel értéket (0) helyett NULL-t
-        // kellene, de az oszlop NOT NULL. Ezért egy dummy sort keresünk, vagy
-        // egyszerűen a text_input kérdéseknél kihagyjuk a mentést és csak
-        // a szöveges választ mentjük egy speciális megközelítéssel.
-        //
-        // Megoldás: text_input esetén az első (helyes) answer_option id-ját keressük ki.
-
         try {
-            // Előre lekérjük a text_input kérdések answer_option id-ját
             const textInputOptIds = {};
             for (const ua of (userAnswers || [])) {
                 const qInfo = questionMap[ua.question_id];
@@ -719,22 +743,25 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
                 const qInfo = questionMap[ua.question_id];
                 if (!qInfo) continue;
 
+                const pointsPossible = qInfo.points || 1;
+                const pointsAwarded = questionScores[ua.question_id] || 0;
+
                 if (qInfo.type === 'text_input') {
                     const aoId = textInputOptIds[ua.question_id];
-                    if (!aoId) continue; // ha nincs answer_option, kihagyjuk
+                    if (!aoId) continue;
                     await pool.query(
-                        `INSERT INTO attempt_answers (attempt_id, question_id, answer_option_id, text_answer)
-                         VALUES ($1, $2, $3, $4)`,
-                        [attemptId, ua.question_id, aoId, ua.text_answer || '']
+                        `INSERT INTO attempt_answers (attempt_id, question_id, answer_option_id, text_answer, points_possible, points_awarded)
+                         VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [attemptId, ua.question_id, aoId, ua.text_answer || '', pointsPossible, pointsAwarded]
                     );
                 } else {
                     const ids = Array.isArray(ua.answer_ids) ? ua.answer_ids : (ua.answer_id ? [ua.answer_id] : []);
-                    if (ids.length === 0) continue; // nem válaszolt – nem mentjük
+                    if (ids.length === 0) continue;
                     for (const aid of ids) {
                         await pool.query(
-                            `INSERT INTO attempt_answers (attempt_id, question_id, answer_option_id)
-                             VALUES ($1, $2, $3)`,
-                            [attemptId, ua.question_id, aid]
+                            `INSERT INTO attempt_answers (attempt_id, question_id, answer_option_id, points_possible, points_awarded)
+                             VALUES ($1, $2, $3, $4, $5)`,
+                            [attemptId, ua.question_id, aid, pointsPossible, pointsAwarded]
                         );
                     }
                 }
@@ -806,14 +833,18 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
             pool.query('SELECT COUNT(*)::int AS cnt FROM quiz_attempts WHERE user_id = $1', [userId]),
             pool.query('SELECT COALESCE(SUM(play_count),0)::int AS total FROM quizzes WHERE owner_id = $1', [userId]),
             pool.query(
-                `SELECT ROUND(AVG(score::numeric / NULLIF(total_questions,0) * 100))::int AS avg_pct
+                `SELECT ROUND(AVG(
+                    score::numeric / NULLIF(GREATEST(COALESCE(total_points, total_questions), score), 0) * 100
+                 ))::int AS avg_pct
                  FROM quiz_attempts WHERE user_id = $1 AND total_questions > 0`,
                 [userId]
             ),
         ]);
 
         const recentRes = await pool.query(
-            `SELECT qa.score, qa.total_questions,
+            `SELECT qa.score,
+                    qa.total_questions,
+                    GREATEST(COALESCE(qa.total_points, qa.total_questions), qa.score) AS total_points,
                     qa.completed_at AS finished_at,
                     q.title AS quiz_title, q.category
              FROM quiz_attempts qa
@@ -830,14 +861,18 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
                 total_plays:    playsRow.rows[0].total,
                 avg_percentage: avgRow.rows[0].avg_pct ?? 0,
             },
-            recent_attempts: recentRes.rows.map(r => ({
-                quiz_title:      r.quiz_title,
-                category:        r.category,
-                score:           r.score,
-                total_questions: r.total_questions,
-                percentage:      r.total_questions > 0 ? Math.round((r.score / r.total_questions) * 100) : 0,
-                finished_at:     r.finished_at,
-            })),
+            recent_attempts: recentRes.rows.map(r => {
+                const tp  = r.total_points || r.total_questions || 1;
+                return {
+                    quiz_title:      r.quiz_title,
+                    category:        r.category,
+                    score:           r.score,
+                    total_questions: r.total_questions,
+                    total_points:    tp,
+                    percentage:      tp > 0 ? Math.round((r.score / tp) * 100) : 0,
+                    finished_at:     r.finished_at,
+                };
+            }),
         });
     } catch (err) {
         console.error(err.message);
@@ -853,7 +888,9 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             pool.query('SELECT COUNT(*)::int AS cnt FROM quiz_attempts WHERE user_id = $1', [userId]),
             pool.query('SELECT COALESCE(SUM(play_count),0)::int AS total FROM quizzes WHERE owner_id = $1', [userId]),
             pool.query(
-                `SELECT ROUND(AVG(score::numeric / NULLIF(total_questions,0) * 100))::int AS avg_pct
+                `SELECT ROUND(AVG(
+                    score::numeric / NULLIF(GREATEST(COALESCE(total_points, total_questions), score), 0) * 100
+                 ))::int AS avg_pct
                  FROM quiz_attempts WHERE user_id = $1 AND total_questions > 0`,
                 [userId]
             ),
@@ -882,7 +919,9 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
 
         const catRes = await pool.query(
             `SELECT q.category,
-                    ROUND(AVG(qa.score::numeric / NULLIF(qa.total_questions,0) * 100))::int AS avg_pct
+                    ROUND(AVG(
+                        qa.score::numeric / NULLIF(GREATEST(COALESCE(qa.total_points, qa.total_questions), qa.score), 0) * 100
+                    ))::int AS avg_pct
              FROM quiz_attempts qa JOIN quizzes q ON q.id = qa.quiz_id
              WHERE qa.user_id = $1 AND qa.total_questions > 0 AND q.category IS NOT NULL
              GROUP BY q.category ORDER BY avg_pct DESC LIMIT 6`,
@@ -891,7 +930,7 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
 
         const ownQuizzesRes = await pool.query(
             `SELECT q.id, q.title, q.category, q.play_count, COUNT(DISTINCT qu.id)::int AS question_count
-             FROM quizzes q LEFT JOIN questions qu ON qu.quiz_id = q.id
+             FROM quizzes q LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              WHERE q.owner_id = $1 GROUP BY q.id ORDER BY q.play_count DESC`,
             [userId]
         );

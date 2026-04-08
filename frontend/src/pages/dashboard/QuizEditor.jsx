@@ -66,7 +66,7 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
   };
 
   const addAnswer = () => {
-    if (q.answers.length >= 4) return;
+    if (q.answers.length >= 6) return;
     setQ(prev => ({ ...prev, answers: [...prev.answers, { answer_text: '', is_correct: false }] }));
   };
 
@@ -149,8 +149,8 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
         <div className="field">
           <label>
             {allowMulti
-              ? `Válaszok (2–4 db, jelöld meg az összes helyeset)`
-              : `Válaszok (2–4 db, jelöld meg az egyetlen helyeset)`}
+              ? `Válaszok (2–6 db, jelöld meg az összes helyeset)`
+              : `Válaszok (2–6 db, jelöld meg az egyetlen helyeset)`}
           </label>
           <div className="answers-list">
             {q.answers.map((a, i) => (
@@ -175,11 +175,11 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
               </div>
             ))}
           </div>
-          {q.answers.length < 4 && (
+          {q.answers.length < 6 && (
             <button type="button" className="editor-add-btn"
               style={{ marginTop: 8, padding: '8px 14px', fontSize: 13, borderRadius: 8 }}
               onClick={addAnswer}>
-              + Válasz hozzáadása ({q.answers.length}/4)
+              + Válasz hozzáadása ({q.answers.length}/6)
             </button>
           )}
         </div>

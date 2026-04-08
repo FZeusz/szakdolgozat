@@ -7,15 +7,13 @@ export default function QuizStats() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
   const isAdmin = user?.role === 'ADMIN';
 
-  const [data,         setData]         = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState('');
-  const [expandedId,   setExpandedId]   = useState(null);   // részletesen megnyitott attempt id
-  const [deleting,     setDeleting]     = useState(null);   // törlés alatt lévő attempt id
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [expandedIds, setExpandedIds] = useState(new Set());
+  const [deleting,    setDeleting]    = useState(null);
 
-  useEffect(() => {
-    load();
-  }, [id]);
+  useEffect(() => { load(); }, [id]);
 
   const load = async () => {
     setLoading(true);
@@ -40,14 +38,14 @@ export default function QuizStats() {
           ...prev.summary,
           total_attempts: prev.summary.total_attempts - 1,
           avg_percentage: (() => {
-            const remaining = prev.attempts.filter(a => a.id !== attemptId);
-            return remaining.length > 0
-              ? Math.round(remaining.reduce((s, a) => s + a.percentage, 0) / remaining.length)
+            const rem = prev.attempts.filter(a => a.id !== attemptId);
+            return rem.length > 0
+              ? Math.round(rem.reduce((s, a) => s + getPct(a), 0) / rem.length)
               : 0;
           })(),
         },
       }));
-      if (expandedId === attemptId) setExpandedId(null);
+      setExpandedIds(prev => { const n = new Set(prev); n.delete(attemptId); return n; });
     } catch { alert('Törlés sikertelen!'); }
     finally { setDeleting(null); }
   };
@@ -57,22 +55,13 @@ export default function QuizStats() {
     try {
       const res = await fetch(`http://localhost:5000/api/quizzes/${id}/attempts`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
-      setData(prev => ({
-        ...prev,
-        attempts: [],
-        summary: { total_attempts: 0, avg_percentage: 0 },
-      }));
-      setExpandedId(null);
+      setData(prev => ({ ...prev, attempts: [], summary: { total_attempts: 0, avg_percentage: 0 } }));
+      setExpandedIds(new Set());
     } catch { alert('Törlés sikertelen!'); }
   };
 
-  if (loading) return (
-    <div className="tab-content">
-      <div className="empty-state"><span className="empty-icon">⏳</span><p>Betöltés...</p></div>
-    </div>
-  );
-
-  if (error) return (
+  if (loading) return <div className="tab-content"><div className="empty-state"><span className="empty-icon">⏳</span><p>Betöltés...</p></div></div>;
+  if (error)   return (
     <div className="tab-content">
       <div className="page-header">
         <button className="dash-btn-outline" onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>← Vissza</button>
@@ -82,44 +71,39 @@ export default function QuizStats() {
   );
 
   const { quiz, attempts, questions, summary } = data;
+
+  // Jelenlegi összpontszám az aktuális kérdések alapján (tájékoztató)
+  const currentTotalPoints = quiz.total_points
+    ?? (questions ? questions.reduce((s, q) => s + (q.points ?? 1), 0) : 1);
+
+  // ── KULCSFÜGGVÉNY: minden attempt a SAJÁT kitöltéskori total_points-ához viszonyít ──
+  // Régi kitöltés (1 pt/kérdés): total_points = total_questions (pl. 1)
+  // Új kitöltés (egyéni pontszám): total_points = a beküldéskor kiszámolt összpont (pl. 5)
+  const getPct = (attempt) => {
+    let tp = attempt.total_points || attempt.total_questions || 1;
+    // Ha az adatbázisban a régi migráció miatt tp = kérdések száma maradt, 
+    // de közben vannak súlyozott pontok a kvízben (pl. egy kérdés 5 pontot ér), használjuk a jelenlegi összpontot
+    if (tp === attempt.total_questions && currentTotalPoints > tp) {
+      tp = currentTotalPoints;
+    }
+    // Biztonsági másodlagos javítás, ha valamiért még mindig kisebb lenne:
+    if (tp < attempt.score) tp = currentTotalPoints;
+
+    return tp > 0 ? Math.round((attempt.score / tp) * 100) : 0;
+  };
+
   const pctColor = (pct) => pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--gold)' : 'var(--error)';
-
-  // Segédfüggvény: a kitöltő mit válaszolt egy kérdésre
-  const getAttemptAnswerDisplay = (attempt, question) => {
-    if (!attempt.answers || attempt.answers.length === 0) return null;
-    const relevant = attempt.answers.filter(aa => aa.question_id === question.id);
-    if (relevant.length === 0) return null;
-
-    if (question.question_type === 'text_input') {
-      return { type: 'text', value: relevant[0]?.text_answer || '(üres)' };
-    }
-    const chosenIds = new Set(relevant.filter(aa => aa.answer_id).map(aa => aa.answer_id));
-    const chosenTexts = question.answers
-      .filter(a => chosenIds.has(a.id))
-      .map(a => a.answer_text);
-    return { type: 'choice', values: chosenTexts };
-  };
-
-  const isAnswerCorrect = (attempt, question) => {
-    if (!attempt.answers || attempt.answers.length === 0) return null;
-    const relevant = attempt.answers.filter(aa => aa.question_id === question.id);
-    if (relevant.length === 0) return null;
-
-    if (question.question_type === 'text_input') {
-      const correct = (question.answers[0]?.answer_text || '').trim().toLowerCase();
-      const given   = (relevant[0]?.text_answer || '').trim().toLowerCase();
-      return given.length > 0 && given === correct;
-    }
-    const correctIds = new Set(question.answers.filter(a => a.is_correct).map(a => a.id));
-    const chosenIds  = new Set(relevant.filter(aa => aa.answer_id).map(aa => aa.answer_id));
-    if (chosenIds.size === 0) return false;
-    return [...correctIds].every(cid => chosenIds.has(cid)) &&
-           [...chosenIds].every(cid => correctIds.has(cid));
-  };
 
   const passLabel = () => {
     if (quiz.pass_score)      return `Sikeres: ≥ ${quiz.pass_score} pont`;
     if (quiz.pass_percentage) return `Sikeres: ≥ ${quiz.pass_percentage}%`;
+    return null;
+  };
+
+  const isPassed = (attempt) => {
+    const pct = getPct(attempt);
+    if (quiz.pass_score)      return attempt.score >= quiz.pass_score;
+    if (quiz.pass_percentage) return pct >= quiz.pass_percentage;
     return null;
   };
 
@@ -130,8 +114,12 @@ export default function QuizStats() {
           <h2 className="page-title">Statisztikák</h2>
           <p className="page-sub">
             <strong>{quiz.title}</strong>
+            <span style={{ marginLeft: 10, fontSize: 12, background: 'var(--gold-subtle)',
+              color: 'var(--gold)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+              {currentTotalPoints} pont (jelenlegi)
+            </span>
             {passLabel() && (
-              <span style={{ marginLeft: 12, fontSize: 12, background: 'var(--gold-subtle)',
+              <span style={{ marginLeft: 8, fontSize: 12, background: 'var(--gold-subtle)',
                 color: 'var(--gold)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
                 🎯 {passLabel()}
               </span>
@@ -143,9 +131,7 @@ export default function QuizStats() {
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {attempts.length > 0 && (
-            <button className="dash-btn-danger" onClick={handleDeleteAll}>
-              🗑️ Összes törlése
-            </button>
+            <button className="dash-btn-danger" onClick={handleDeleteAll}>🗑️ Összes törlése</button>
           )}
           <button className="dash-btn-outline" onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>
             ← Vissza a listához
@@ -162,13 +148,17 @@ export default function QuizStats() {
         </div>
         <div className="stat-card">
           <span className="stat-card-icon">🎯</span>
-          <span className="stat-card-value">{summary.avg_percentage}%</span>
+          <span className="stat-card-value">
+            {attempts.length > 0
+              ? Math.round(attempts.reduce((s, a) => s + getPct(a), 0) / attempts.length)
+              : summary.avg_percentage}%
+          </span>
           <span className="stat-card-label">Átlagos eredmény</span>
         </div>
         <div className="stat-card">
           <span className="stat-card-icon">🏆</span>
           <span className="stat-card-value">
-            {attempts.length > 0 ? Math.max(...attempts.map(a => a.percentage)) + '%' : '–'}
+            {attempts.length > 0 ? Math.max(...attempts.map(a => getPct(a))) + '%' : '–'}
           </span>
           <span className="stat-card-label">Legjobb eredmény</span>
         </div>
@@ -183,11 +173,7 @@ export default function QuizStats() {
           <div className="stat-card">
             <span className="stat-card-icon">✅</span>
             <span className="stat-card-value" style={{ color: 'var(--success)' }}>
-              {attempts.filter(a =>
-                quiz.pass_score      ? a.score >= quiz.pass_score
-              : quiz.pass_percentage ? a.percentage >= quiz.pass_percentage
-              : false
-              ).length}
+              {attempts.filter(a => isPassed(a) === true).length}
             </span>
             <span className="stat-card-label">Sikeres kitöltés</span>
           </div>
@@ -202,37 +188,37 @@ export default function QuizStats() {
         </div>
       ) : (
         <div className="result-list">
-          {/* Fejléc */}
           <div className="result-row" style={{ background: 'var(--surface-2)', fontWeight: 600 }}>
             <div className="result-info">
-              <span className="result-name" style={{ color: 'var(--btn-muted)', fontSize: 12 }}>
-                FELHASZNÁLÓ
-              </span>
+              <span className="result-name" style={{ color: 'var(--btn-muted)', fontSize: 12 }}>FELHASZNÁLÓ</span>
             </div>
             <div className="result-right" style={{ gap: 8 }}>
-              <span className="result-score" style={{ color: 'var(--btn-muted)', fontSize: 12 }}>
-                EREDMÉNY
-              </span>
-              <span style={{ minWidth: 80, fontSize: 12, color: 'var(--btn-muted)', textAlign: 'right' }}>
-                MŰVELETEK
-              </span>
+              <span className="result-score" style={{ color: 'var(--btn-muted)', fontSize: 12 }}>EREDMÉNY</span>
+              <span style={{ minWidth: 80, fontSize: 12, color: 'var(--btn-muted)', textAlign: 'right' }}>MŰVELETEK</span>
             </div>
           </div>
 
           {attempts.map((a, i) => {
-            const isExpanded = expandedId === a.id;
-            const isPassed = quiz.pass_score      ? a.score >= quiz.pass_score
-                           : quiz.pass_percentage ? a.percentage >= quiz.pass_percentage
-                           : null;
+            const isExpanded = expandedIds.has(a.id);
+            const passed     = isPassed(a);
+            const pct        = getPct(a);
+            // Kitöltéskori összpontszám (amit a backend ment el)
+            let attemptTotalPts = a.total_points || a.total_questions || 1;
+            if (attemptTotalPts === a.total_questions && currentTotalPoints > attemptTotalPts) {
+              attemptTotalPts = currentTotalPoints;
+            }
+            if (attemptTotalPts < a.score) {
+              attemptTotalPts = currentTotalPoints;
+            }
+
             return (
               <div key={a.id ?? i}>
-                {/* Sor */}
                 <div className="result-row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <div className="result-info">
                     <span className="result-name">
                       {a.user_id ? `👤 ${a.username}` : '🌐 Névtelen'}
-                      {isPassed === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
-                      {isPassed === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)', fontWeight: 700 }}>✗ Sikertelen</span>}
+                      {passed === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
+                      {passed === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
                     </span>
                     <span className="result-date">
                       {a.finished_at ? new Date(a.finished_at).toLocaleString('hu-HU') : ''}
@@ -240,20 +226,20 @@ export default function QuizStats() {
                   </div>
                   <div className="result-right" style={{ gap: 8 }}>
                     <div className="pct-bar-wrap">
-                      <div className="pct-bar" style={{
-                        width: `${a.percentage}%`,
-                        background: pctColor(a.percentage),
-                      }} />
+                      <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct) }} />
                     </div>
-                    <span className="result-score" style={{ color: pctColor(a.percentage) }}>
-                      {a.score} / {a.total_questions} – {a.percentage}%
+                    {/* Szerzett pont / kitöltéskori összpont – helyes százalék */}
+                    <span className="result-score" style={{ color: pctColor(pct) }}>
+                      {a.score} / {attemptTotalPts} pt – {pct}%
                     </span>
-                    {/* Gombok */}
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      {questions && questions.length > 0 && (
-                        <button className="icon-btn" title="Részletek"
-                          style={{ fontSize: 13 }}
-                          onClick={() => setExpandedId(isExpanded ? null : a.id)}>
+                      {a.answers?.length > 0 && (
+                        <button className="icon-btn" title="Részletek" style={{ fontSize: 13 }}
+                          onClick={() => setExpandedIds(prev => {
+                            const n = new Set(prev);
+                            n.has(a.id) ? n.delete(a.id) : n.add(a.id);
+                            return n;
+                          })}>
                           {isExpanded ? '▲' : '▼'}
                         </button>
                       )}
@@ -268,61 +254,57 @@ export default function QuizStats() {
                 </div>
 
                 {/* Részletes válaszok */}
-                {isExpanded && questions && questions.length > 0 && (
-                  <div style={{
-                    background: 'var(--surface-2)',
-                    borderTop: '1px solid var(--border-light)',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {isExpanded && a.answers?.length > 0 && (
+                  <div style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border-light)',
+                    padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Válaszok részletesen
                     </div>
-                    {questions.map((q, qi) => {
-                      const answerDisplay = getAttemptAnswerDisplay(a, q);
-                      const correct       = isAnswerCorrect(a, q);
-                      const correctAnswers = q.question_type === 'text_input'
-                        ? [q.answers[0]?.answer_text || '']
-                        : q.answers.filter(ans => ans.is_correct).map(ans => ans.answer_text);
+                    {a.answers.map((ans, qi) => {
+                      const ptsPossible = ans.points_possible ?? 1;
+                      const ptsAwarded = ans.points_awarded ?? 0;
+                      const isOldEntry = ans.points_awarded === undefined || ans.points_awarded === null;
+                      const correct = ptsAwarded > 0 ? (ptsAwarded === ptsPossible ? true : 'partial') : false;
+                      const hasChosen = ans.question_type === 'text_input' ? !!ans.text_answer : ans.chosen_texts.length > 0;
 
                       return (
-                        <div key={q.id} style={{
+                        <div key={ans.question_id} style={{
                           background: 'var(--surface)',
                           border: `1px solid ${correct === true ? 'rgba(58,158,90,0.3)' : correct === false ? 'rgba(217,79,79,0.3)' : 'var(--border-light)'}`,
-                          borderRadius: 10,
-                          padding: '12px 16px',
+                          borderRadius: 10, padding: '12px 16px',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                             <span style={{ fontSize: 13, color: 'var(--muted)', minWidth: 22 }}>{qi + 1}.</span>
-                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', flex: 1 }}>{q.question_text}</span>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', flex: 1 }}>{ans.question_text}</span>
+                            <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99,
+                              background: correct === true ? 'rgba(58,158,90,0.12)' : 'var(--gold-subtle)',
+                              color: correct === true ? 'var(--success)' : 'var(--gold)',
+                              fontWeight: 700, whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0 }}>
+                              {isOldEntry ? '-' : ptsAwarded} / {ptsPossible} pt
+                            </span>
                             <span style={{ fontSize: 18, flexShrink: 0 }}>
                               {correct === true ? '✅' : correct === false ? '❌' : '❓'}
                             </span>
                           </div>
                           <div style={{ paddingLeft: 30, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {/* Mit válaszolt */}
-                            {answerDisplay ? (
+                            {hasChosen ? (
                               <div style={{ fontSize: 13 }}>
                                 <span style={{ color: 'var(--muted)', marginRight: 6 }}>Válasz:</span>
-                                <span style={{ color: correct ? 'var(--success)' : 'var(--error)', fontWeight: 500 }}>
-                                  {answerDisplay.type === 'text'
-                                    ? answerDisplay.value
-                                    : answerDisplay.values.length > 0
-                                      ? answerDisplay.values.join(', ')
-                                      : '(nem válaszolt)'}
+                                <span style={{ color: correct === true ? 'var(--success)' : 'var(--error)', fontWeight: 500 }}>
+                                  {ans.question_type === 'text_input'
+                                    ? ans.text_answer || '(üres)'
+                                    : ans.chosen_texts.join(', ')}
                                 </span>
                               </div>
                             ) : (
                               <div style={{ fontSize: 13, color: 'var(--muted)' }}>(nincs rögzített válasz)</div>
                             )}
-                            {/* Helyes válasz – csak ha hibás */}
                             {correct === false && (
                               <div style={{ fontSize: 13 }}>
                                 <span style={{ color: 'var(--muted)', marginRight: 6 }}>Helyes:</span>
                                 <span style={{ color: 'var(--success)', fontWeight: 600 }}>
-                                  {correctAnswers.join(', ')}
+                                  {ans.correct_answers_text || '(ismeretlen)'}
                                 </span>
                               </div>
                             )}
