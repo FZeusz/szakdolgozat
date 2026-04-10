@@ -40,7 +40,7 @@ export default function QuizStats() {
           avg_percentage: (() => {
             const rem = prev.attempts.filter(a => a.id !== attemptId);
             return rem.length > 0
-              ? Math.round(rem.reduce((s, a) => s + getPct(a), 0) / rem.length)
+              ? Math.round(rem.reduce((s, a) => s + a.percentage, 0) / rem.length)
               : 0;
           })(),
         },
@@ -72,26 +72,15 @@ export default function QuizStats() {
 
   const { quiz, attempts, questions, summary } = data;
 
-  // Jelenlegi összpontszám az aktuális kérdések alapján (tájékoztató)
+  // Jelenlegi összpontszám – csak a fejlécben jelenik meg tájékoztatóként
   const currentTotalPoints = quiz.total_points
     ?? (questions ? questions.reduce((s, q) => s + (q.points ?? 1), 0) : 1);
 
-  // ── KULCSFÜGGVÉNY: minden attempt a SAJÁT kitöltéskori total_points-ához viszonyít ──
-  // Régi kitöltés (1 pt/kérdés): total_points = total_questions (pl. 1)
-  // Új kitöltés (egyéni pontszám): total_points = a beküldéskor kiszámolt összpont (pl. 5)
-  const getPct = (attempt) => {
-    let tp = attempt.total_points || attempt.total_questions || 1;
-    // Ha az adatbázisban a régi migráció miatt tp = kérdések száma maradt, 
-    // de közben vannak súlyozott pontok a kvízben (pl. egy kérdés 5 pontot ér), használjuk a jelenlegi összpontot
-    if (tp === attempt.total_questions && currentTotalPoints > tp) {
-      tp = currentTotalPoints;
-    }
-    // Biztonsági másodlagos javítás, ha valamiért még mindig kisebb lenne:
-    if (tp < attempt.score) tp = currentTotalPoints;
-
-    return tp > 0 ? Math.round((attempt.score / tp) * 100) : 0;
-  };
-
+  // ── EGYSZERŰ, MEGBÍZHATÓ LOGIKA ──────────────────────────────────
+  // A backend már elvégezte a COALESCE(total_points, total_questions) számítást,
+  // és az attempt.percentage-t is helyesen adja vissza.
+  // A frontenden SEMMIT nem számítunk újra – csak az eltárolt értékeket jelenítjük meg.
+  // hide_results-tól, aktuális kérdéspontoktól teljesen független.
   const pctColor = (pct) => pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--gold)' : 'var(--error)';
 
   const passLabel = () => {
@@ -101,9 +90,8 @@ export default function QuizStats() {
   };
 
   const isPassed = (attempt) => {
-    const pct = getPct(attempt);
     if (quiz.pass_score)      return attempt.score >= quiz.pass_score;
-    if (quiz.pass_percentage) return pct >= quiz.pass_percentage;
+    if (quiz.pass_percentage) return attempt.percentage >= quiz.pass_percentage;
     return null;
   };
 
@@ -148,17 +136,13 @@ export default function QuizStats() {
         </div>
         <div className="stat-card">
           <span className="stat-card-icon">🎯</span>
-          <span className="stat-card-value">
-            {attempts.length > 0
-              ? Math.round(attempts.reduce((s, a) => s + getPct(a), 0) / attempts.length)
-              : summary.avg_percentage}%
-          </span>
+          <span className="stat-card-value">{summary.avg_percentage}%</span>
           <span className="stat-card-label">Átlagos eredmény</span>
         </div>
         <div className="stat-card">
           <span className="stat-card-icon">🏆</span>
           <span className="stat-card-value">
-            {attempts.length > 0 ? Math.max(...attempts.map(a => getPct(a))) + '%' : '–'}
+            {attempts.length > 0 ? Math.max(...attempts.map(a => a.percentage)) + '%' : '–'}
           </span>
           <span className="stat-card-label">Legjobb eredmény</span>
         </div>
@@ -201,15 +185,8 @@ export default function QuizStats() {
           {attempts.map((a, i) => {
             const isExpanded = expandedIds.has(a.id);
             const passed     = isPassed(a);
-            const pct        = getPct(a);
-            // Kitöltéskori összpontszám (amit a backend ment el)
-            let attemptTotalPts = a.total_points || a.total_questions || 1;
-            if (attemptTotalPts === a.total_questions && currentTotalPoints > attemptTotalPts) {
-              attemptTotalPts = currentTotalPoints;
-            }
-            if (attemptTotalPts < a.score) {
-              attemptTotalPts = currentTotalPoints;
-            }
+            const pct        = a.percentage;             // backend számolja, nem mi
+            const tp         = a.total_points;           // kitöltéskori összpont
 
             return (
               <div key={a.id ?? i}>
@@ -228,9 +205,9 @@ export default function QuizStats() {
                     <div className="pct-bar-wrap">
                       <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct) }} />
                     </div>
-                    {/* Szerzett pont / kitöltéskori összpont – helyes százalék */}
+                    {/* Szerzett pont / kitöltéskori összpont (tárolt érték) */}
                     <span className="result-score" style={{ color: pctColor(pct) }}>
-                      {a.score} / {attemptTotalPts} pt – {pct}%
+                      {a.score} / {tp} pt – {pct}%
                     </span>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       {a.answers?.length > 0 && (
@@ -262,26 +239,30 @@ export default function QuizStats() {
                       Válaszok részletesen
                     </div>
                     {a.answers.map((ans, qi) => {
-                      const ptsPossible = ans.points_possible ?? 1;
-                      const ptsAwarded = ans.points_awarded ?? 0;
-                      const isOldEntry = ans.points_awarded === undefined || ans.points_awarded === null;
-                      const correct = ptsAwarded > 0 ? (ptsAwarded === ptsPossible ? true : 'partial') : false;
-                      const hasChosen = ans.question_type === 'text_input' ? !!ans.text_answer : ans.chosen_texts.length > 0;
+                      const ptsPossible  = ans.points_possible ?? 1;
+                      const ptsAwarded   = ans.points_awarded  ?? null;
+                      const hasPointData = ptsAwarded !== null;
+                      const correct      = hasPointData ? (ptsAwarded > 0) : null;
+                      const hasChosen    = ans.question_type === 'text_input'
+                        ? !!ans.text_answer
+                        : (ans.chosen_texts?.length > 0);
 
                       return (
-                        <div key={ans.question_id} style={{
+                        <div key={ans.question_id ?? qi} style={{
                           background: 'var(--surface)',
                           border: `1px solid ${correct === true ? 'rgba(58,158,90,0.3)' : correct === false ? 'rgba(217,79,79,0.3)' : 'var(--border-light)'}`,
                           borderRadius: 10, padding: '12px 16px',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                             <span style={{ fontSize: 13, color: 'var(--muted)', minWidth: 22 }}>{qi + 1}.</span>
-                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', flex: 1 }}>{ans.question_text}</span>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', flex: 1 }}>
+                              {ans.question_text}
+                            </span>
                             <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99,
                               background: correct === true ? 'rgba(58,158,90,0.12)' : 'var(--gold-subtle)',
                               color: correct === true ? 'var(--success)' : 'var(--gold)',
                               fontWeight: 700, whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0 }}>
-                              {isOldEntry ? '-' : ptsAwarded} / {ptsPossible} pt
+                              {hasPointData ? ptsAwarded : '–'} / {ptsPossible} pt
                             </span>
                             <span style={{ fontSize: 18, flexShrink: 0 }}>
                               {correct === true ? '✅' : correct === false ? '❌' : '❓'}

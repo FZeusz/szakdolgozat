@@ -20,17 +20,17 @@ export default function DashboardHome() {
       fetch(`http://localhost:5000/api/users/${user.id}/home-data`).then(r => r.json()),
       fetch(`http://localhost:5000/api/quizzes/public/${user.id}`).then(r => r.json()),
     ]).then(([homeData, pubQuizzes]) => {
-      if (homeData.stats)          setStats(homeData.stats);
+      if (homeData.stats)           setStats(homeData.stats);
       if (homeData.recent_attempts) setRecent(homeData.recent_attempts);
       if (Array.isArray(pubQuizzes)) setQuizzes(pubQuizzes.slice(0, 3));
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const STAT_CARDS = stats ? [
-    { icon: '📝', value: stats.quiz_count,     label: 'Létrehozott kvízek' },
-    { icon: '✅', value: stats.attempt_count,  label: 'Kitöltött kvízek'  },
-    { icon: '👥', value: stats.total_plays,    label: 'Összes játékos'    },
-    { icon: '🎯', value: (stats.avg_percentage ?? 0) + '%', label: 'Átlagos eredmény' },
+    { icon: '📝', value: stats.quiz_count,                    label: 'Létrehozott kvízek' },
+    { icon: '✅', value: stats.attempt_count,                 label: 'Kitöltött kvízek'   },
+    { icon: '👥', value: stats.total_plays,                   label: 'Összes játékos'     },
+    { icon: '🎯', value: (stats.avg_percentage ?? 0) + '%',   label: 'Átlagos eredmény'   },
   ] : [];
 
   return (
@@ -100,8 +100,9 @@ export default function DashboardHome() {
                       background: pctColor(r.percentage),
                     }} />
                   </div>
+                  {/* total_points: a kitöltéskori összpontszám (nem a kérdések száma!) */}
                   <span className="result-score" style={{ color: pctColor(r.percentage) }}>
-                    {r.score} / {r.total_questions} — {r.percentage}%
+                    {r.score} / {r.total_points} — {r.percentage}%
                   </span>
                 </div>
               </div>
