@@ -440,8 +440,8 @@ export default function QuizEditor() {
         <div className="error-msg" style={{ maxWidth: 600, marginBottom: 16 }}>{saveError}</div>
       )}
 
-      {/* Pont alapú küszöb panel – csak ha a kvízen pass_score mód van VAGY ha már vannak kérdések */}
-      {quiz && quiz.pass_percentage === null && questions.length > 0 && (
+      {/* Pont alapú küszöb panel – csak ha pass_mode === 'score' és vannak kérdések */}
+      {quiz && quiz.pass_mode === 'score' && questions.length > 0 && (
         <PassScorePanel
           quiz={quiz}
           questions={questions}

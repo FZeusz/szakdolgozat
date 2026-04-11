@@ -72,15 +72,9 @@ export default function QuizStats() {
 
   const { quiz, attempts, questions, summary } = data;
 
-  // Jelenlegi összpontszám – csak a fejlécben jelenik meg tájékoztatóként
   const currentTotalPoints = quiz.total_points
     ?? (questions ? questions.reduce((s, q) => s + (q.points ?? 1), 0) : 1);
 
-  // ── EGYSZERŰ, MEGBÍZHATÓ LOGIKA ──────────────────────────────────
-  // A backend már elvégezte a COALESCE(total_points, total_questions) számítást,
-  // és az attempt.percentage-t is helyesen adja vissza.
-  // A frontenden SEMMIT nem számítunk újra – csak az eltárolt értékeket jelenítjük meg.
-  // hide_results-tól, aktuális kérdéspontoktól teljesen független.
   const pctColor = (pct) => pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--gold)' : 'var(--error)';
 
   const passLabel = () => {
@@ -89,11 +83,9 @@ export default function QuizStats() {
     return null;
   };
 
-  const isPassed = (attempt) => {
-    if (quiz.pass_score)      return attempt.score >= quiz.pass_score;
-    if (quiz.pass_percentage) return attempt.percentage >= quiz.pass_percentage;
-    return null;
-  };
+  // is_successful: a beküldéskor egyszer elmentett érték – sosem újraszámolt.
+  // null = nem volt küszöb beállítva a kitöltés pillanatában.
+  const isPassed = (attempt) => attempt.is_successful ?? null;
 
   return (
     <div className="tab-content">
@@ -153,11 +145,12 @@ export default function QuizStats() {
           </span>
           <span className="stat-card-label">Különböző kitöltő</span>
         </div>
-        {(quiz.pass_score || quiz.pass_percentage) && attempts.length > 0 && (
+        {/* Sikeres kártya: csak ha van legalább egy attempt ahol is_successful nem null */}
+        {attempts.some(a => a.is_successful !== null) && (
           <div className="stat-card">
             <span className="stat-card-icon">✅</span>
             <span className="stat-card-value" style={{ color: 'var(--success)' }}>
-              {attempts.filter(a => isPassed(a) === true).length}
+              {attempts.filter(a => a.is_successful === true).length}
             </span>
             <span className="stat-card-label">Sikeres kitöltés</span>
           </div>
@@ -184,9 +177,9 @@ export default function QuizStats() {
 
           {attempts.map((a, i) => {
             const isExpanded = expandedIds.has(a.id);
-            const passed     = isPassed(a);
-            const pct        = a.percentage;             // backend számolja, nem mi
-            const tp         = a.total_points;           // kitöltéskori összpont
+            const passed     = isPassed(a);   // a.is_successful – eltárolt érték
+            const pct        = a.percentage;
+            const tp         = a.total_points;
 
             return (
               <div key={a.id ?? i}>
@@ -205,7 +198,6 @@ export default function QuizStats() {
                     <div className="pct-bar-wrap">
                       <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct) }} />
                     </div>
-                    {/* Szerzett pont / kitöltéskori összpont (tárolt érték) */}
                     <span className="result-score" style={{ color: pctColor(pct) }}>
                       {a.score} / {tp} pt – {pct}%
                     </span>

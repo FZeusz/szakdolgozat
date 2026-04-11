@@ -22,6 +22,9 @@ async function runMigrations() {
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS shuffle_questions BOOLEAN DEFAULT FALSE`,
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS access_password VARCHAR DEFAULT NULL`,
         `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS total_points INT DEFAULT NULL`,
+        `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS pass_mode VARCHAR(20) DEFAULT 'none'`,
+        // is_successful: a beküldéskor egyszer mentett sikerességi státusz
+        `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS is_successful BOOLEAN DEFAULT NULL`,
     ];
     for (const sql of migrations) {
         try { await pool.query(sql); } catch(e) {}
@@ -189,7 +192,7 @@ app.get('/api/quizzes/:id', async (req, res) => {
             `SELECT q.id, q.title, q.description, q.category, q.time_limit,
                     q.is_public, q.share_code, q.created_at, q.play_count,
                     q.one_attempt, q.shuffle_questions, q.shuffle_answers,
-                    q.pass_score, q.pass_percentage, q.hide_results,
+                    q.pass_score, q.pass_percentage, q.pass_mode, q.hide_results,
                     u.username AS owner_name,
                     COUNT(DISTINCT qu.id)::int AS question_count
              FROM quizzes q
@@ -221,9 +224,6 @@ app.put('/api/quizzes/:id/pass-score', async (req, res) => {
 });
 
 // ── STATISZTIKA ───────────────────────────────────────────────────
-// FONTOS: a százalékot és a total_points-ot MINDIG a quiz_attempts táblából
-// olvassuk, soha nem számítjuk újra az aktuális questions alapján.
-// hide_results-tól függetlenül ugyanaz a logika fut.
 app.get('/api/quizzes/:id/stats', async (req, res) => {
     try {
         const { id } = req.params;
@@ -234,15 +234,13 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
         if (quizResult.rows.length === 0)
             return res.status(404).json({ message: 'Kviz nem talalhato!' });
 
-        // Kitöltések – total_points: a kitöltéskor elmentett összpontszám
-        // COALESCE(total_points, total_questions): ha régi sor (nincs total_points), 
-        // a total_questions az 1pt/kérdés régi maximum
-        // SEMMI felülbírálat, SEMMI GREATEST() – szigorúan az eltárolt értékeket használjuk
+        // is_successful: a beküldéskor egyszer mentett érték – nem számolódik újra
         const attemptsResult = await pool.query(
             `SELECT qa.id,
                     qa.score,
                     qa.total_questions,
                     COALESCE(qa.total_points, qa.total_questions) AS total_points,
+                    qa.is_successful,
                     qa.completed_at AS finished_at,
                     u.username,
                     u.id AS user_id
@@ -253,7 +251,6 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
             [id]
         );
 
-        // Kérdések + answer_options (jelenlegi állapot – csak tájékoztató, a részletes nézethez kell)
         const questionsResult = await pool.query(
             `SELECT id, text AS question_text, question_type, COALESCE(points, 1) AS points
              FROM questions WHERE quiz_id = $1 AND is_active = true ORDER BY question_order, id`,
@@ -267,10 +264,8 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
             return { ...q, answers: aResult.rows };
         }));
 
-        // Jelenlegi összpontszám (csak a fejlécben jelenik meg tájékoztatóként)
         const currentTotalPoints = questions.reduce((s, q) => s + (q.points || 1), 0);
 
-        // Részletes válaszok lekérése
         let attemptAnswers = {};
         try {
             const aaResult = await pool.query(
@@ -317,9 +312,8 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
             console.error('attempt_answers lekérési hiba:', e.message);
         }
 
-        // Attempt-ek összerakása – percentage mindig az eltárolt total_points alapján
         const attempts = attemptsResult.rows.map(a => {
-            const tp  = a.total_points || 1;   // COALESCE már a lekérdezésben megtörtént
+            const tp  = a.total_points || 1;
             const pct = tp > 0 ? Math.round((a.score / tp) * 100) : 0;
             return {
                 id:              a.id,
@@ -329,6 +323,7 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
                 total_questions: a.total_questions,
                 total_points:    tp,
                 percentage:      pct,
+                is_successful:   a.is_successful,  // eltárolt érték, sosem újraszámolt
                 finished_at:     a.finished_at,
                 answers:         attemptAnswers[a.id]
                                     ? Object.values(attemptAnswers[a.id])
@@ -388,7 +383,7 @@ app.post('/api/quizzes', async (req, res) => {
             owner_id, title, description, category,
             time_limit, is_public, access_password, one_attempt,
             shuffle_questions, shuffle_answers,
-            pass_score, pass_percentage, hide_results
+            pass_score, pass_percentage, pass_mode, hide_results
         } = req.body;
 
         if (!owner_id || !title)
@@ -408,8 +403,8 @@ app.post('/api/quizzes', async (req, res) => {
             `INSERT INTO quizzes
                (owner_id, title, description, category, time_limit, is_public,
                 access_password, share_code, one_attempt, shuffle_questions, shuffle_answers,
-                pass_score, pass_percentage, hide_results)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+                pass_score, pass_percentage, hide_results, pass_mode)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
             [
                 owner_id, title, description || null, category || null,
                 time_limit || null, is_public ?? true,
@@ -421,6 +416,7 @@ app.post('/api/quizzes', async (req, res) => {
                 pass_score        ?? null,
                 pass_percentage   ?? null,
                 hide_results      ?? false,
+                pass_mode         || 'none',
             ]
         );
         res.status(201).json({ message: 'Kviz sikeresen letrehozva!', quiz: result.rows[0] });
@@ -719,11 +715,21 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
             questionScores[ua.question_id] = awarded;
         });
 
-        // total_points mentése: a kitöltéskori összpontszám
+        const percentage  = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+        const passScore   = quizRow.rows[0].pass_score;
+        const passPct     = quizRow.rows[0].pass_percentage;
+        const hideResults = quizRow.rows[0].hide_results;
+
+        // is_successful: a JELENLEGI ponthatár alapján egyszer számítjuk ki és mentjük el.
+        // Később sosem módosul, még ha a tulajdonos változtatja is a ponthatárt.
+        let isSuccessful = null;
+        if (passScore !== null && passScore !== undefined)  isSuccessful = earnedPoints >= passScore;
+        else if (passPct !== null && passPct !== undefined) isSuccessful = percentage   >= passPct;
+
         const insertRes = await pool.query(
-            `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_questions, total_points, completed_at)
-             VALUES ($1,$2,$3,$4,$5, NOW()) RETURNING id`,
-            [id, user_id || null, earnedPoints, totalQuestions, totalPoints]
+            `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_questions, total_points, is_successful, completed_at)
+             VALUES ($1,$2,$3,$4,$5,$6, NOW()) RETURNING id`,
+            [id, user_id || null, earnedPoints, totalQuestions, totalPoints, isSuccessful]
         );
         const attemptId = insertRes.rows[0].id;
 
@@ -775,22 +781,13 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
 
         await pool.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [id]);
 
-        const percentage  = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
-        const passScore   = quizRow.rows[0].pass_score;
-        const passPct     = quizRow.rows[0].pass_percentage;
-        const hideResults = quizRow.rows[0].hide_results;
-
-        let passed = null;
-        if (passScore !== null && passScore !== undefined)  passed = earnedPoints >= passScore;
-        else if (passPct !== null && passPct !== undefined) passed = percentage   >= passPct;
-
         res.json({
             score:           earnedPoints,
             total:           totalPoints,
             correct_count:   correctCount,
             total_questions: totalQuestions,
             percentage,
-            passed,
+            passed:          isSuccessful,
             pass_score:      passScore,
             pass_percentage: passPct,
             hide_results:    hideResults ?? false,
@@ -846,10 +843,12 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
             ),
         ]);
 
+        // is_successful is lekérjük – megjelenítéshez
         const recentRes = await pool.query(
             `SELECT qa.score,
                     qa.total_questions,
                     COALESCE(qa.total_points, qa.total_questions) AS total_points,
+                    qa.is_successful,
                     qa.completed_at AS finished_at,
                     q.title AS quiz_title, q.category
              FROM quiz_attempts qa
@@ -876,6 +875,7 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
                     total_questions: r.total_questions,
                     total_points:    tp,
                     percentage:      tp > 0 ? Math.round((r.score / tp) * 100) : 0,
+                    is_successful:   r.is_successful,  // eltárolt érték
                     finished_at:     r.finished_at,
                 };
             }),

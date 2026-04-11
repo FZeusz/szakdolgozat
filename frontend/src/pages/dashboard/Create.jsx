@@ -19,7 +19,7 @@ export default function DashboardCreate() {
   const [hideResults,      setHideResults]      = useState(false);
 
   // Sikerességi küszöb – csak százalék, a pont alapú a QuizEditorban állítható
-  const [passMode,       setPassMode]       = useState('none');   // 'none' | 'score' | 'percentage'
+  const [passMode,       setPassMode]       = useState('score');  // 'score' | 'percentage'
   const [passPercentage, setPassPercentage] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -53,8 +53,9 @@ export default function DashboardCreate() {
           shuffle_questions: shuffleQuestions,
           shuffle_answers:   shuffleAnswers,
           hide_results:      hideResults,
-          pass_score:        passMode === 'score' ? null : null,   // pont alapú küszöb csak a QuizEditorban
+          pass_score:        null,
           pass_percentage:   passMode === 'percentage' ? parseInt(passPercentage) : null,
+          pass_mode:         passMode,
         }),
       });
 
@@ -138,21 +139,23 @@ export default function DashboardCreate() {
           </div>
         )}
 
-        {/* Sikerességi küszöb – csak % (a pont alapú a kérdések megadása után, a szerkesztőben érhető el) */}
+        {/* Sikerességi küszöb */}
         <div className="field">
           <label>Sikerességi küszöb</label>
           <div className="visibility-toggle" style={{ flexWrap: 'wrap' }}>
-            <button type="button" className={`vis-btn ${passMode === 'none' ? 'active' : ''}`}
-              onClick={() => setPassMode('none')}>Nincs megadva</button>
+            <button type="button" className={`vis-btn ${passMode === 'score' ? 'active' : ''}`}
+              onClick={() => setPassMode('score')}>🏅 Pont alapján</button>
             <button type="button" className={`vis-btn ${passMode === 'percentage' ? 'active' : ''}`}
               onClick={() => setPassMode('percentage')}>📊 Százalék alapján</button>
           </div>
           <p className="field-hint" style={{ marginTop: 6 }}>
-            {passMode === 'none' && (
-              <>Az eredmény megjelenik, de nincs siker/sikertelen minősítés.
-              <span style={{ display: 'block', marginTop: 4, color: 'var(--gold)' }}>
-                💡 Pont alapú küszöböt a kérdések megadása után, a szerkesztőben állíthatsz be.
-              </span></>
+            {passMode === 'score' && (
+              <span>
+                A konkrét pont küszöböt a következő lépésben, a kérdések megadása után tudod beállítani.
+                <span style={{ display: 'block', marginTop: 4, color: 'var(--gold)' }}>
+                  💡 A küszöb beállítása a kérdésszerkesztő tetején lesz elérhető.
+                </span>
+              </span>
             )}
             {passMode === 'percentage' && 'Megadod, hány %-ot kell elérni a sikerhez.'}
           </p>

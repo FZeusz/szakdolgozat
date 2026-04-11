@@ -100,9 +100,11 @@ export default function DashboardHome() {
                       background: pctColor(r.percentage),
                     }} />
                   </div>
-                  {/* total_points: a kitöltéskori összpontszám (nem a kérdések száma!) */}
                   <span className="result-score" style={{ color: pctColor(r.percentage) }}>
                     {r.score} / {r.total_points} — {r.percentage}%
+                    {/* is_successful: eltárolt érték – nem számolódik újra */}
+                    {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
+                    {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
                   </span>
                 </div>
               </div>
