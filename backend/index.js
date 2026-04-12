@@ -23,13 +23,11 @@ async function runMigrations() {
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS access_password VARCHAR DEFAULT NULL`,
         `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS total_points INT DEFAULT NULL`,
         `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS pass_mode VARCHAR(20) DEFAULT 'none'`,
-        // is_successful: a beküldéskor egyszer mentett sikerességi státusz
         `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS is_successful BOOLEAN DEFAULT NULL`,
     ];
     for (const sql of migrations) {
         try { await pool.query(sql); } catch(e) {}
     }
-    // Régi attempt soroknál total_points = total_questions (1 pont/kérdés volt régen)
     try {
         await pool.query(`
             UPDATE quiz_attempts
@@ -223,6 +221,18 @@ app.put('/api/quizzes/:id/pass-score', async (req, res) => {
     }
 });
 
+app.put('/api/quizzes/:id/pass-percentage', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { pass_percentage } = req.body;
+        await pool.query('UPDATE quizzes SET pass_percentage = $1 WHERE id = $2', [pass_percentage ?? null, id]);
+        res.json({ message: 'Pass percentage frissitve!', pass_percentage: pass_percentage ?? null });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
 // ── STATISZTIKA ───────────────────────────────────────────────────
 app.get('/api/quizzes/:id/stats', async (req, res) => {
     try {
@@ -234,7 +244,6 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
         if (quizResult.rows.length === 0)
             return res.status(404).json({ message: 'Kviz nem talalhato!' });
 
-        // is_successful: a beküldéskor egyszer mentett érték – nem számolódik újra
         const attemptsResult = await pool.query(
             `SELECT qa.id,
                     qa.score,
@@ -323,7 +332,7 @@ app.get('/api/quizzes/:id/stats', async (req, res) => {
                 total_questions: a.total_questions,
                 total_points:    tp,
                 percentage:      pct,
-                is_successful:   a.is_successful,  // eltárolt érték, sosem újraszámolt
+                is_successful:   a.is_successful,
                 finished_at:     a.finished_at,
                 answers:         attemptAnswers[a.id]
                                     ? Object.values(attemptAnswers[a.id])
@@ -631,26 +640,67 @@ app.put('/api/quizzes/:id/questions/reorder', async (req, res) => {
     res.json({ message: 'Sorrend mentve!' });
 });
 
-// ── KITOLTES ─────────────────────────────────────────────────────
-
-app.post('/api/quizzes/:id/submit', async (req, res) => {
+app.post('/api/quizzes/:id/start', async (req, res) => {
     try {
         const { id } = req.params;
-        const { user_id, answers: userAnswers } = req.body;
+        const { user_id } = req.body;
 
         const quizRow = await pool.query(
-            'SELECT one_attempt, pass_score, pass_percentage, hide_results FROM quizzes WHERE id = $1', [id]
+            'SELECT one_attempt, pass_score, pass_percentage FROM quizzes WHERE id = $1', [id]
         );
         if (quizRow.rows.length === 0)
             return res.status(404).json({ message: 'Kviz nem talalhato!' });
 
         if (quizRow.rows[0].one_attempt && user_id) {
+            const prev = await pool.query(
+                'SELECT id FROM quiz_attempts WHERE quiz_id = $1 AND user_id = $2 LIMIT 1',
+                [id, user_id]
+            );
+            if (prev.rows.length > 0)
+                return res.status(403).json({ message: 'Ezt a kvizt mar kitoltotted, csak egyszer lehet!' });
+        }
+
+        const qRes = await pool.query(
+            'SELECT id, COALESCE(points, 1) AS points FROM questions WHERE quiz_id = $1 AND is_active = true',
+            [id]
+        );
+        const totalQuestions = qRes.rows.length;
+        const totalPoints    = qRes.rows.reduce((s, q) => s + (q.points || 1), 0);
+
+        const insertRes = await pool.query(
+            `INSERT INTO quiz_attempts
+                (quiz_id, user_id, score, total_questions, total_points, is_successful, completed_at)
+             VALUES ($1,$2,0,$3,$4,false,NOW()) RETURNING id`,
+            [id, user_id || null, totalQuestions, totalPoints]
+        );
+
+        res.json({ attempt_id: insertRes.rows[0].id });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
+// ── KITOLTES ─────────────────────────────────────────────────────
+
+app.post('/api/quizzes/:id/submit', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { user_id, answers: userAnswers, attempt_id } = req.body;
+
+        const quizRow = await pool.query(
+            'SELECT one_attempt, pass_score, pass_percentage, hide_results, pass_mode FROM quizzes WHERE id = $1', [id]
+        );
+        if (quizRow.rows.length === 0)
+            return res.status(404).json({ message: 'Kviz nem talalhato!' });
+
+        if (quizRow.rows[0].one_attempt && user_id && !attempt_id) {
             const prevAttempt = await pool.query(
                 'SELECT id FROM quiz_attempts WHERE quiz_id = $1 AND user_id = $2 LIMIT 1',
                 [id, user_id]
             );
             if (prevAttempt.rows.length > 0)
-                return res.status(403).json({ message: 'Ezt a kvízt már kitöltötted, csak egyszer lehet!' });
+                return res.status(403).json({ message: 'Ezt a kvizt mar kitoltotted, csak egyszer lehet!' });
         }
 
         const questionsResult = await pool.query(
@@ -719,19 +769,34 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
         const passScore   = quizRow.rows[0].pass_score;
         const passPct     = quizRow.rows[0].pass_percentage;
         const hideResults = quizRow.rows[0].hide_results;
+        const passMode    = quizRow.rows[0].pass_mode;
 
-        // is_successful: a JELENLEGI ponthatár alapján egyszer számítjuk ki és mentjük el.
-        // Később sosem módosul, még ha a tulajdonos változtatja is a ponthatárt.
         let isSuccessful = null;
-        if (passScore !== null && passScore !== undefined)  isSuccessful = earnedPoints >= passScore;
-        else if (passPct !== null && passPct !== undefined) isSuccessful = percentage   >= passPct;
+        if (passMode === 'score' && passScore !== null && passScore !== undefined)           isSuccessful = earnedPoints >= passScore;
+        else if (passMode === 'percentage' && passPct !== null && passPct !== undefined)     isSuccessful = percentage   >= passPct;
 
-        const insertRes = await pool.query(
-            `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_questions, total_points, is_successful, completed_at)
-             VALUES ($1,$2,$3,$4,$5,$6, NOW()) RETURNING id`,
-            [id, user_id || null, earnedPoints, totalQuestions, totalPoints, isSuccessful]
-        );
-        const attemptId = insertRes.rows[0].id;
+        let finalAttemptId;
+        if (attempt_id) {
+            await pool.query(
+                `UPDATE quiz_attempts
+                 SET score=$1, total_questions=$2, total_points=$3,
+                     is_successful=$4, completed_at=NOW()
+                 WHERE id=$5`,
+                [earnedPoints, totalQuestions, totalPoints, isSuccessful, attempt_id]
+            );
+            finalAttemptId = attempt_id;
+            await pool.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [id]);
+        } else {
+            const insertRes = await pool.query(
+                `INSERT INTO quiz_attempts
+                   (quiz_id, user_id, score, total_questions, total_points, is_successful, completed_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,NOW()) RETURNING id`,
+                [id, user_id || null, earnedPoints, totalQuestions, totalPoints, isSuccessful]
+            );
+            finalAttemptId = insertRes.rows[0].id;
+            await pool.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [id]);
+        }
+        const attemptId = finalAttemptId;
 
         try {
             const textInputOptIds = {};
@@ -779,8 +844,6 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
             console.error('attempt_answers mentési hiba:', e.message);
         }
 
-        await pool.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [id]);
-
         res.json({
             score:           earnedPoints,
             total:           totalPoints,
@@ -788,6 +851,7 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
             total_questions: totalQuestions,
             percentage,
             passed:          isSuccessful,
+            pass_mode:       passMode,
             pass_score:      passScore,
             pass_percentage: passPct,
             hide_results:    hideResults ?? false,
@@ -823,6 +887,62 @@ app.delete('/api/quizzes/:id/attempts', async (req, res) => {
     }
 });
 
+// ── REPORTOK ─────────────────────────────────────────────────────
+
+// Jelentés beküldése
+app.post('/api/reports', async (req, res) => {
+    try {
+        const { quiz_id, user_id, message } = req.body;
+        if (!quiz_id)
+            return res.status(400).json({ message: 'A quiz_id megadasa kotelezo!' });
+        const result = await pool.query(
+            `INSERT INTO quiz_reports (quiz_id, user_id, message)
+             VALUES ($1, $2, $3) RETURNING *`,
+            [quiz_id, user_id || null, message || null]
+        );
+        res.status(201).json({ message: 'Jelentes sikeresen bekuldve!', report: result.rows[0] });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
+// Admin: összes jelentés lekérése
+app.get('/api/admin/reports', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT r.id,
+                    r.message,
+                    r.created_at,
+                    q.id   AS quiz_id,
+                    q.title AS quiz_title,
+                    u.username AS reporter_username
+             FROM quiz_reports r
+             LEFT JOIN quizzes q ON q.id = r.quiz_id
+             LEFT JOIN users   u ON u.id = r.user_id
+             ORDER BY r.created_at DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
+// Admin: jelentés törlése
+app.delete('/api/admin/reports/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM quiz_reports WHERE id = $1 RETURNING id', [id]);
+        if (result.rowCount === 0)
+            return res.status(404).json({ message: 'Jelentes nem talalhato!' });
+        res.json({ message: 'Jelentes torolve!' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
 // ── FELHASZNALO DASHBOARD ADATOK ────────────────────────────────
 
 app.get('/api/users/:userId/home-data', async (req, res) => {
@@ -843,14 +963,14 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
             ),
         ]);
 
-        // is_successful is lekérjük – megjelenítéshez
         const recentRes = await pool.query(
             `SELECT qa.score,
                     qa.total_questions,
                     COALESCE(qa.total_points, qa.total_questions) AS total_points,
                     qa.is_successful,
                     qa.completed_at AS finished_at,
-                    q.title AS quiz_title, q.category
+                    q.id AS quiz_id,
+                    q.title AS quiz_title, q.category, q.one_attempt
              FROM quiz_attempts qa
              JOIN quizzes q ON q.id = qa.quiz_id
              WHERE qa.user_id = $1
@@ -869,13 +989,15 @@ app.get('/api/users/:userId/home-data', async (req, res) => {
             recent_attempts: recentRes.rows.map(r => {
                 const tp = r.total_points || r.total_questions || 1;
                 return {
+                    quiz_id:         r.quiz_id,
                     quiz_title:      r.quiz_title,
                     category:        r.category,
+                    one_attempt:     r.one_attempt,
                     score:           r.score,
                     total_questions: r.total_questions,
                     total_points:    tp,
                     percentage:      tp > 0 ? Math.round((r.score / tp) * 100) : 0,
-                    is_successful:   r.is_successful,  // eltárolt érték
+                    is_successful:   r.is_successful,
                     finished_at:     r.finished_at,
                 };
             }),

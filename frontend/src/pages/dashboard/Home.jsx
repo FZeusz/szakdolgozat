@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catColor } from './shared';
 
-const pctColor = (p) => p >= 80 ? 'var(--success)' : p >= 60 ? 'var(--gold)' : 'var(--error)';
+const pctColor = (pct, passed) => {
+  if (passed === true)  return 'var(--success)';
+  if (passed === false) return 'var(--error)';
+  return `hsl(${Math.round(pct * 1.2)}, 75%, 45%)`;
+};
 
 export default function DashboardHome() {
   const navigate = useNavigate();
@@ -97,15 +101,24 @@ export default function DashboardHome() {
                   <div className="pct-bar-wrap">
                     <div className="pct-bar" style={{
                       width: `${r.percentage}%`,
-                      background: pctColor(r.percentage),
+                      background: pctColor(r.percentage, r.is_successful),
                     }} />
                   </div>
-                  <span className="result-score" style={{ color: pctColor(r.percentage) }}>
+                  <span className="result-score" style={{ color: pctColor(r.percentage, r.is_successful) }}>
                     {r.score} / {r.total_points} — {r.percentage}%
-                    {/* is_successful: eltárolt érték – nem számolódik újra */}
                     {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
                     {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
                   </span>
+                  {!r.one_attempt && r.quiz_id && (
+                    <button
+                      className="icon-btn"
+                      title="Kvíz újra kitöltése"
+                      style={{ marginLeft: 8, fontSize: 13, flexShrink: 0 }}
+                      onClick={() => navigate(`/quiz/${r.quiz_id}`)}
+                    >
+                      🔄
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

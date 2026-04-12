@@ -6,15 +6,17 @@ export default function DashboardAdmin() {
   const navigate = useNavigate();
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
 
-  const [tab,      setTab]      = useState('quizzes'); // 'quizzes' | 'users'
+  const [tab,      setTab]      = useState('quizzes'); // 'quizzes' | 'users' | 'reports'
   const [quizzes,  setQuizzes]  = useState([]);
   const [users,    setUsers]    = useState([]);
+  const [reports,  setReports]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
 
   // Szűrők
-  const [quizSearch, setQuizSearch] = useState('');
-  const [userSearch, setUserSearch] = useState('');
+  const [quizSearch,   setQuizSearch]   = useState('');
+  const [userSearch,   setUserSearch]   = useState('');
+  const [reportSearch, setReportSearch] = useState('');
 
   useEffect(() => {
     if (user?.role !== 'ADMIN') return;
@@ -24,12 +26,14 @@ export default function DashboardAdmin() {
   const loadAll = async () => {
     setLoading(true); setError('');
     try {
-      const [qRes, uRes] = await Promise.all([
+      const [qRes, uRes, rRes] = await Promise.all([
         fetch('http://localhost:5000/api/admin/quizzes'),
         fetch('http://localhost:5000/api/admin/users'),
+        fetch('http://localhost:5000/api/admin/reports'),
       ]);
       if (qRes.ok) setQuizzes(await qRes.json());
       if (uRes.ok) setUsers(await uRes.json());
+      if (rRes.ok) setReports(await rRes.json());
     } catch { setError('Nem sikerült betölteni az adatokat.'); }
     finally { setLoading(false); }
   };
@@ -50,6 +54,15 @@ export default function DashboardAdmin() {
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setUsers(prev => prev.filter(u => u.id !== userId));
       setQuizzes(prev => prev.filter(q => q.owner_id !== userId));
+    } catch { alert('Törlés sikertelen!'); }
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm(`Kezelted/Törlöd ezt a jelentést?\n\nEzzel eltávolítod a listából.`)) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/admin/reports/${reportId}`, { method: 'DELETE' });
+      if (!res.ok) { alert('Törlés sikertelen!'); return; }
+      setReports(prev => prev.filter(r => r.id !== reportId));
     } catch { alert('Törlés sikertelen!'); }
   };
 
@@ -80,6 +93,12 @@ export default function DashboardAdmin() {
     (u.email || '').toLowerCase().includes(userSearch.toLowerCase())
   );
 
+  const filteredReports = reports.filter(r =>
+    (r.quiz_title || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+    (r.reporter_username || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+    (r.message || '').toLowerCase().includes(reportSearch.toLowerCase())
+  );
+
   return (
     <div className="tab-content">
       <div className="page-header">
@@ -97,7 +116,7 @@ export default function DashboardAdmin() {
             color: 'var(--gold)',
             fontWeight: 600,
           }}>
-            {quizzes.length} kvíz · {users.length} felhasználó
+            {quizzes.length} kvíz · {users.length} felhasználó · {reports.length} jelentés
           </div>
         </div>
       </div>
@@ -110,6 +129,8 @@ export default function DashboardAdmin() {
           onClick={() => setTab('quizzes')}>📝 Kvízek ({quizzes.length})</button>
         <button className={`vis-btn ${tab === 'users' ? 'active' : ''}`}
           onClick={() => setTab('users')}>👥 Felhasználók ({users.length})</button>
+        <button className={`vis-btn ${tab === 'reports' ? 'active' : ''}`}
+          onClick={() => setTab('reports')}>⚠️ Jelentések ({reports.length})</button>
       </div>
 
       {/* ── KVÍZEK TAB ── */}
@@ -225,6 +246,60 @@ export default function DashboardAdmin() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── JELENTÉSEK TAB ── */}
+      {tab === 'reports' && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <input className="search-input" placeholder="🔍 Keresés kvíz, jelentő vagy üzenet alapján..."
+              value={reportSearch} onChange={e => setReportSearch(e.target.value)} />
+          </div>
+          {filteredReports.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-icon">✅</span>
+              <p>Nincs egyetlen jelentés sem.</p>
+            </div>
+          ) : (
+            <div className="my-quiz-list">
+              {filteredReports.map(r => (
+                <div key={r.id} className="my-quiz-row" style={{ alignItems: 'flex-start' }}>
+                  <div className="my-quiz-left">
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <span className="my-quiz-title" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                              onClick={() => navigate(`/dashboard/quizzes/${r.quiz_id}/edit`)}
+                              title="Ugrás a kvíz szerkesztőjébe">
+                          {r.quiz_title || 'Ismeretlen kvíz'}
+                        </span>
+                        <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 99, background: 'rgba(217,79,79,0.12)', color: 'var(--error)', fontWeight: 600 }}>
+                          ⚠️ Jelentve
+                        </span>
+                      </div>
+                      <div className="my-quiz-meta" style={{ marginBottom: 6 }}>
+                        👤 Jelentő: {r.reporter_username || 'Névtelen'} · 📅 {new Date(r.created_at).toLocaleString('hu-HU')}
+                      </div>
+                      {r.message && (
+                        <div style={{
+                          background: 'var(--surface-2)', padding: '10px 14px', borderRadius: 8,
+                          fontSize: 13, color: 'var(--text)', borderLeft: '3px solid var(--error)',
+                          whiteSpace: 'pre-wrap', fontStyle: 'italic'
+                        }}>
+                          "{r.message}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="my-quiz-actions" style={{ alignSelf: 'center' }}>
+                    <button className="icon-btn" title="Kezelve / Törlés"
+                      style={{ color: 'var(--success)' }}
+                      onClick={() => handleDeleteReport(r.id)}>✅</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

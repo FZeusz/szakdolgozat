@@ -19,7 +19,7 @@ export default function DashboardCreate() {
   const [hideResults,      setHideResults]      = useState(false);
 
   // Sikerességi küszöb – csak százalék, a pont alapú a QuizEditorban állítható
-  const [passMode,       setPassMode]       = useState('score');  // 'score' | 'percentage'
+  const [passMode,       setPassMode]       = useState('none');  // 'none' | 'score' | 'percentage'
   const [passPercentage, setPassPercentage] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -53,7 +53,7 @@ export default function DashboardCreate() {
           shuffle_questions: shuffleQuestions,
           shuffle_answers:   shuffleAnswers,
           hide_results:      hideResults,
-          pass_score:        null,
+          pass_score:        passMode === 'score' ? 1 : null,
           pass_percentage:   passMode === 'percentage' ? parseInt(passPercentage) : null,
           pass_mode:         passMode,
         }),
@@ -143,12 +143,15 @@ export default function DashboardCreate() {
         <div className="field">
           <label>Sikerességi küszöb</label>
           <div className="visibility-toggle" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className={`vis-btn ${passMode === 'none' ? 'active' : ''}`}
+              onClick={() => setPassMode('none')}>🚫 Nincs megadva</button>
             <button type="button" className={`vis-btn ${passMode === 'score' ? 'active' : ''}`}
               onClick={() => setPassMode('score')}>🏅 Pont alapján</button>
             <button type="button" className={`vis-btn ${passMode === 'percentage' ? 'active' : ''}`}
               onClick={() => setPassMode('percentage')}>📊 Százalék alapján</button>
           </div>
           <p className="field-hint" style={{ marginTop: 6 }}>
+            {passMode === 'none' && 'Nem lesz sikeres/sikertelen értékelés, csak a pontokat és százalékokat mutatja a rendszer.'}
             {passMode === 'score' && (
               <span>
                 A konkrét pont küszöböt a következő lépésben, a kérdések megadása után tudod beállítani.

@@ -267,7 +267,8 @@ function PassScorePanel({ quiz, questions, onSaved }) {
       </div>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
         A kérdések jelenlegi összpontszáma <strong>{totalPoints} pont</strong>.
-        Add meg, hány pontot kell elérni a kvíz sikeres teljesítéséhez, vagy hagyd üresen ha nincs küszöb.
+        Jelenleg <strong>{quiz.pass_score || 1} pontot</strong> kell elérni a kvíz sikeres teljesítéséhez.
+        Add meg alább, ha módosítani szeretnéd a sikeres teljesítéshez szükséges pontszámot.
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <input
@@ -282,11 +283,6 @@ function PassScorePanel({ quiz, questions, onSaved }) {
           onClick={handleSave} disabled={saving}>
           {saving ? '...' : 'Mentés'}
         </button>
-        {passScore !== '' && passScore !== null && (
-          <button className="dash-btn-outline" style={{ padding: '8px 14px', fontSize: 13 }}
-            onClick={() => { setPassScore(''); }}
-            title="Küszöb törlése">✕ Törlés</button>
-        )}
       </div>
       {/* Vizuális skála */}
       {totalPoints > 0 && passScore !== '' && !isNaN(parseInt(passScore)) && parseInt(passScore) >= 1 && parseInt(passScore) <= totalPoints && (
@@ -300,6 +296,96 @@ function PassScorePanel({ quiz, questions, onSaved }) {
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
             {Math.round((parseInt(passScore) / totalPoints) * 100)}% a küszöb
+          </div>
+        </div>
+      )}
+      {msg && (
+        <div className={msg.type === 'success' ? 'success-msg' : 'error-msg'} style={{ marginTop: 12, marginBottom: 0 }}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Pass percentage szerkesztő panel a QuizEditorban ───────────────────
+function PassPercentagePanel({ quiz, questions, onSaved }) {
+  const totalPoints = questions.reduce((s, q) => s + (q.points ?? 1), 0);
+  const [passPercentage, setPassPercentage] = useState(() => quiz.pass_percentage ?? '');
+  const [saving,    setSaving]    = useState(false);
+  const [msg,       setMsg]       = useState(null);
+
+  const handleSave = async () => {
+    const pct = passPercentage === '' ? null : parseInt(passPercentage);
+    if (pct !== null && (isNaN(pct) || pct < 1 || pct > 100)) {
+      setMsg({ type: 'error', text: `A százalékos küszöb 1 és 100 közé kell essen!` });
+      return;
+    }
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`http://localhost:5000/api/quizzes/${quiz.id}/pass-percentage`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pass_percentage: pct }),
+      });
+      if (!res.ok) { setMsg({ type: 'error', text: 'Mentés sikertelen!' }); return; }
+      setMsg({ type: 'success', text: '✓ Százalékos küszöb mentve!' });
+      onSaved(pct);
+    } catch { setMsg({ type: 'error', text: 'Szerver hiba!' }); }
+    finally { setSaving(false); }
+  };
+
+  if (questions.length === 0) return null;
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border-light)',
+      borderRadius: 14,
+      padding: '18px 22px',
+      maxWidth: 720,
+      marginBottom: 20,
+      boxShadow: 'var(--shadow-sm)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>📊 Százalék alapú sikerességi küszöb</span>
+        <span style={{
+          fontSize: 12, padding: '2px 9px', borderRadius: 99,
+          background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 600,
+        }}>
+          Összesen: {totalPoints} pont
+        </span>
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+        Jelenleg <strong>{quiz.pass_percentage || 50}%-ot</strong> kell elérni a kvíz sikeres teljesítéséhez.
+        Add meg alább, ha módosítani szeretnéd a sikeres teljesítéshez szükséges százalékot.
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <input
+          type="number" min="1" max="100"
+          placeholder="pl. 75"
+          value={passPercentage}
+          onChange={e => setPassPercentage(e.target.value)}
+          style={{ width: 110 }}
+        />
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>% szükséges a sikerhez</span>
+        <button className="dash-btn-primary" style={{ width: 'auto', padding: '8px 20px' }}
+          onClick={handleSave} disabled={saving}>
+          {saving ? '...' : 'Mentés'}
+        </button>
+      </div>
+      {/* Vizuális skála */}
+      {totalPoints > 0 && passPercentage !== '' && !isNaN(parseInt(passPercentage)) && parseInt(passPercentage) >= 1 && parseInt(passPercentage) <= 100 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
+            <div style={{
+              position: 'absolute', left: 0, top: 0, height: '100%',
+              width: `${parseInt(passPercentage)}%`,
+              background: 'var(--gold)', borderRadius: 99, transition: 'width 0.3s',
+            }} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+            {Math.max(1, Math.round((parseInt(passPercentage) / 100) * totalPoints))} pont kell a sikerhez
           </div>
         </div>
       )}
@@ -446,6 +532,15 @@ export default function QuizEditor() {
           quiz={quiz}
           questions={questions}
           onSaved={(pts) => setQuiz(prev => ({ ...prev, pass_score: pts }))}
+        />
+      )}
+
+      {/* Százalék alapú küszöb panel – csak ha pass_mode === 'percentage' és vannak kérdések */}
+      {quiz && quiz.pass_mode === 'percentage' && questions.length > 0 && (
+        <PassPercentagePanel
+          quiz={quiz}
+          questions={questions}
+          onSaved={(pct) => setQuiz(prev => ({ ...prev, pass_percentage: pct }))}
         />
       )}
 

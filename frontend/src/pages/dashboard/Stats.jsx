@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catColor } from './shared';
 
-const pctColor = (p) => p >= 80 ? 'var(--success)' : p >= 60 ? 'var(--gold)' : 'var(--error)';
+const pctColor = (pct, passed = null) => {
+  if (passed === true)  return 'var(--success)';
+  if (passed === false) return 'var(--error)';
+  return `hsl(${Math.round(pct * 1.2)}, 75%, 45%)`;
+};
 
 export default function DashboardStats() {
   const navigate = useNavigate();
