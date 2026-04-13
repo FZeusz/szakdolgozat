@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 
 const NAV_ITEMS = [
   { path: '/dashboard',         icon: '🏠', label: 'Főoldal',      end: true  },
@@ -13,6 +14,25 @@ export default function Dashboard() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
   const initials = (user?.username || 'U').slice(0, 2).toUpperCase();
   const isAdmin = user?.role === 'ADMIN';
+
+  const [reportCount, setReportCount] = useState(0);
+
+  // Reportok számának lekérése adminoknak
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchReports = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/admin/reports');
+        if (!res.ok) return;
+        const data = await res.json();
+        setReportCount(Array.isArray(data) ? data.length : 0);
+      } catch { /* silent */ }
+    };
+    fetchReports();
+    // 60 másodpercenként frissül
+    const interval = setInterval(fetchReports, 60_000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -63,7 +83,7 @@ export default function Dashboard() {
               </NavLink>
             ))}
 
-            {/* Admin link – csak adminoknak */}
+            {/* Admin link – csak adminoknak, report badge-del */}
             {isAdmin && (
               <NavLink
                 to="/dashboard/admin"
@@ -74,6 +94,23 @@ export default function Dashboard() {
               >
                 <span className="dash-nav-icon">👑</span>
                 <span className="dash-nav-label">Admin panel</span>
+                {reportCount > 0 && (
+                  <span style={{
+                    marginLeft:      'auto',
+                    background:      'var(--error)',
+                    color:           '#fff',
+                    fontSize:        11,
+                    fontWeight:      700,
+                    lineHeight:      1,
+                    padding:         '3px 7px',
+                    borderRadius:    99,
+                    minWidth:        20,
+                    textAlign:       'center',
+                    flexShrink:      0,
+                  }}>
+                    {reportCount > 99 ? '99+' : reportCount}
+                  </span>
+                )}
               </NavLink>
             )}
           </nav>

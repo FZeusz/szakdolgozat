@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CAT_COLORS } from './shared';
+import { PasswordInput } from '../../components/PasswordInput';
 
 export default function DashboardCreate() {
   const navigate = useNavigate();
@@ -18,8 +19,7 @@ export default function DashboardCreate() {
   const [shuffleAnswers,   setShuffleAnswers]   = useState(false);
   const [hideResults,      setHideResults]      = useState(false);
 
-  // Sikerességi küszöb – csak százalék, a pont alapú a QuizEditorban állítható
-  const [passMode,       setPassMode]       = useState('none');  // 'none' | 'score' | 'percentage'
+  const [passMode,       setPassMode]       = useState('none');
   const [passPercentage, setPassPercentage] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -131,11 +131,15 @@ export default function DashboardCreate() {
           </p>
         </div>
 
+        {/* Belépési jelszó – PasswordInput komponenssel, szem ikonnal */}
         {!isPublic && (
           <div className="field">
             <label>Belépési jelszó <span style={{ color: 'var(--error)' }}>*</span></label>
-            <input type="text" placeholder="A kvíz kitöltéséhez szükséges jelszó"
-              value={accessPassword} onChange={e => setAccessPassword(e.target.value)} />
+            <PasswordInput
+              value={accessPassword}
+              onChange={e => setAccessPassword(e.target.value)}
+              placeholder="A kvíz kitöltéséhez szükséges jelszó"
+            />
           </div>
         )}
 

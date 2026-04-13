@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PasswordInput } from '../components/PasswordInput';
 
 const isMultiAnswer = (answers) => answers.filter(a => a.is_correct).length > 1;
 
@@ -26,7 +27,6 @@ function ReportModal({ quizId, userId, onClose }) {
   };
 
   return (
-    // Backdrop
     <div
       onClick={onClose}
       style={{
@@ -36,7 +36,6 @@ function ReportModal({ quizId, userId, onClose }) {
         padding: 16,
       }}
     >
-      {/* Modal kártya – kattintás ne zárdja be */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -146,7 +145,6 @@ export default function TakeQuiz() {
   const [attemptId,   setAttemptId]   = useState(null);
   const [showWarning, setShowWarning] = useState(false);
 
-  // Jelentés modal
   const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
@@ -267,8 +265,12 @@ export default function TakeQuiz() {
         <form onSubmit={handlePassword} style={{ width: '100%' }}>
           <div className="field">
             <label>Jelszó</label>
-            <input type="password" value={pwInput} onChange={e => setPwInput(e.target.value)}
-              placeholder="••••••••" autoFocus />
+            {/* PasswordInput: alapból titkosított, szem ikonnal megjeleníthető */}
+            <PasswordInput
+              value={pwInput}
+              onChange={e => setPwInput(e.target.value)}
+              placeholder="••••••••"
+            />
           </div>
           {pwError && <div className="error-msg">{pwError}</div>}
           <button type="submit" className="dash-btn-primary" style={{ width: '100%' }} disabled={pwLoading}>
@@ -347,7 +349,6 @@ export default function TakeQuiz() {
 
     return (
       <div className="tq-root">
-        {/* Jelentés modal */}
         {showReport && (
           <ReportModal
             quizId={id}
@@ -362,7 +363,6 @@ export default function TakeQuiz() {
           {quiz.time_limit && !expired && (
             <Timer seconds={quiz.time_limit} onExpire={() => { setExpired(true); handleSubmit(); }} />
           )}
-          {/* Kvíz jelentése gomb – csak 'taking' fázisban látszik */}
           <button
             onClick={() => setShowReport(true)}
             title="Kvíz jelentése"
