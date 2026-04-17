@@ -45,7 +45,7 @@ export default function Dashboard() {
       {/* ── TOP NAVBAR ── */}
       <header className="dash-navbar">
         <span className="dash-navbar-logo" onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-          Alkalmazás neve
+          KvízPro
         </span>
         <div className="dash-navbar-right">
           {isAdmin && (

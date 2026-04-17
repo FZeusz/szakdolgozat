@@ -48,7 +48,7 @@ export default function Register() {
   return (
     <div className="register-root">
       <nav className="navbar">
-        <span className="navbar-logo" onClick={() => navigate('/')}>Alkalmazás neve</span>
+        <span className="navbar-logo" onClick={() => navigate('/')}>KvízPro</span>
         <p className="navbar-hint">
           Már van fiókod?
           <span onClick={() => navigate('/login')}>Jelentkezz be</span>

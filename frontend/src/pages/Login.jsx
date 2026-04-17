@@ -38,7 +38,7 @@ export default function Login() {
 
         {/* Navbar */}
         <nav className="navbar">
-          <span className="navbar-logo" onClick={() => navigate('/')}>Alkalmazás neve</span>
+          <span className="navbar-logo" onClick={() => navigate('/')}>Kvíz oldal</span>
           <p className="navbar-hint">
             Még nincs fiókod?
             <span onClick={() => navigate('/register')}>Regisztrálj</span>
@@ -115,7 +115,7 @@ export default function Login() {
 
         {/* Footer */}
         <footer className="footer">
-          © 2026 Alkalmazás neve · Minden jog fenntartva
+          © 2026 KvízPro · Fónagy Zeusz Vilmos · Minden jog fenntartva
         </footer>
 
       </div>

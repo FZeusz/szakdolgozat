@@ -9,7 +9,7 @@ export default function Landing() {
 
         {/* Fixed Navbar */}
         <nav className="navbar">
-          <span className="navbar-logo">Alkalmazás neve</span>
+          <span className="navbar-logo">KvízPro</span>
           <div className="navbar-actions">
             <button className="btn-ghost" onClick={() => navigate('/login')}>
               Bejelentkezés
@@ -23,8 +23,8 @@ export default function Landing() {
         {/* Hero */}
         <div className="hero">
           <div className="hero-text">
-            <h1>Az alkalmazás neve</h1>
-            <p>Egy rövid leírás, hogy miről szól a platform. Kiemelhetjük a legfontosabb előnyöket, funkciókat, vagy akár egy szlogent is.</p>
+            <h1>KvízPro</h1>
+            <p>Egy rövid leírás, hogy miről szól az oldal. Még nincs kitöltve. (kamu adatok)</p>
           </div>
 
           <div className="stats">
@@ -45,7 +45,7 @@ export default function Landing() {
 
         {/* Footer */}
         <footer className="footer">
-          © 2026 Alkalmazás neve · Minden jog fenntartva
+          © 2026 KvízPro · Fónagy Zeusz Vilmos · Minden jog fenntartva
         </footer>
 
       </div>
