@@ -233,6 +233,37 @@ app.put('/api/quizzes/:id/pass-percentage', async (req, res) => {
     }
 });
 
+// Hozzaferesi jelszo lekerese (csak tulajdonosnak)
+app.get('/api/quizzes/:id/access-password', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            'SELECT access_password FROM quizzes WHERE id = $1', [id]
+        );
+        if (result.rows.length === 0)
+            return res.status(404).json({ message: 'Kviz nem talalhato!' });
+        res.json({ access_password: result.rows[0].access_password || '' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
+// Hozzaferesi jelszo frissitese
+app.put('/api/quizzes/:id/access-password', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { access_password } = req.body;
+        if (!access_password || !access_password.trim())
+            return res.status(400).json({ message: 'A jelszo nem lehet ures!' });
+        await pool.query('UPDATE quizzes SET access_password = $1 WHERE id = $2', [access_password.trim(), id]);
+        res.json({ message: 'Jelszo frissitve!' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Szerver hiba tortent!' });
+    }
+});
+
 // ── STATISZTIKA ───────────────────────────────────────────────────
 app.get('/api/quizzes/:id/stats', async (req, res) => {
     try {
@@ -536,8 +567,8 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
         } else {
             if (!answers || answers.length < 2)
                 return res.status(400).json({ message: 'Legalabb 2 valasz kotelezo!' });
-            if (answers.length > 4)
-                return res.status(400).json({ message: 'Maximum 4 valasz adhato meg!' });
+            if (answers.length > 6)
+                return res.status(400).json({ message: 'Maximum 6 valasz adhato meg!' });
             if (!answers.some(a => a.is_correct))
                 return res.status(400).json({ message: 'Legalabb egy helyes valaszt meg kell jelolni!' });
         }
@@ -587,8 +618,8 @@ app.put('/api/questions/:id', async (req, res) => {
         } else {
             if (!answers || answers.length < 2)
                 return res.status(400).json({ message: 'Legalabb 2 valasz kotelezo!' });
-            if (answers.length > 4)
-                return res.status(400).json({ message: 'Maximum 4 valasz adhato meg!' });
+            if (answers.length > 6)
+                return res.status(400).json({ message: 'Maximum 6 valasz adhato meg!' });
             if (!answers.some(a => a.is_correct))
                 return res.status(400).json({ message: 'Legalabb egy helyes valaszt meg kell jelolni!' });
         }
@@ -1010,15 +1041,11 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
     try {
         const { userId } = req.params;
 
-        // ── 1. SZEKCIÓ: FELHASZNÁLÓI STATISZTIKÁK ──
-
-        // Alap számlálók
         const [attemptCount, avgRow, successRow, bestRow] = await Promise.all([
             pool.query(
                 `SELECT COUNT(*)::int AS cnt
                  FROM quiz_attempts qa
-                 JOIN quizzes q ON q.id = qa.quiz_id
-                 WHERE qa.user_id = $1 AND (q.hide_results IS NULL OR q.hide_results = false)`,
+                 WHERE qa.user_id = $1`,
                 [userId]
             ),
             pool.query(
@@ -1047,7 +1074,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             ),
         ]);
 
-        // Havi kitöltések + átlag%
         const monthlyRes = await pool.query(
             `SELECT TO_CHAR(DATE_TRUNC('month', qa.completed_at), 'YYYY-MM') AS month,
                     COUNT(*)::int AS cnt,
@@ -1079,7 +1105,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             });
         }
 
-        // Kategóriánkénti teljesítmény (kitöltőként)
         const catRes = await pool.query(
             `SELECT q.category,
                     COUNT(*)::int AS cnt,
@@ -1096,7 +1121,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             [userId]
         );
 
-        // Legutóbbi 5 kitöltés
         const recentAttemptsRes = await pool.query(
             `SELECT qa.id,
                     qa.score,
@@ -1113,9 +1137,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             [userId]
         );
 
-        // ── 2. SZEKCIÓ: SAJÁT KVÍZEK STATISZTIKÁI ──
-
-        // Saját kvízek összesítők
         const [ownQuizCount, totalPlaysRow, ownAvgRow] = await Promise.all([
             pool.query(`SELECT COUNT(*)::int AS cnt FROM quizzes WHERE owner_id = $1`, [userId]),
             pool.query(`SELECT COALESCE(SUM(play_count),0)::int AS total FROM quizzes WHERE owner_id = $1`, [userId]),
@@ -1130,7 +1151,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             ),
         ]);
 
-        // Saját kvízek listája (play_count szerinti top 10)
         const ownQuizzesRes = await pool.query(
             `SELECT q.id, q.title, q.category, q.play_count, q.is_public,
                     COUNT(DISTINCT qu.id)::int AS question_count,
@@ -1148,7 +1168,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             [userId]
         );
 
-        // Saját kvízek kategória-bontás (hány kitöltést kaptak kategóriánként)
         const ownCatRes = await pool.query(
             `SELECT q.category,
                     COUNT(DISTINCT q.id)::int AS quiz_count,
@@ -1165,7 +1184,6 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
         );
 
         res.json({
-            // ── Felhasználói szekció ──
             player_stats: {
                 attempt_count:   attemptCount.rows[0].cnt,
                 avg_percentage:  avgRow.rows[0].avg_pct       ?? 0,
@@ -1176,20 +1194,15 @@ app.get('/api/users/:userId/stats-data', async (req, res) => {
             category_performance: catRes.rows,
             recent_attempts: recentAttemptsRes.rows.map(r => {
                 const tp = r.total_points || 1;
-                return {
-                    ...r,
-                    percentage: tp > 0 ? Math.round((r.score / tp) * 100) : 0,
-                };
+                return { ...r, percentage: tp > 0 ? Math.round((r.score / tp) * 100) : 0 };
             }),
-
-            // ── Saját kvíz szekció ──
             creator_stats: {
                 quiz_count:    ownQuizCount.rows[0].cnt,
                 total_plays:   totalPlaysRow.rows[0].total,
                 avg_score_pct: ownAvgRow.rows[0].avg_pct ?? null,
             },
-            own_quizzes:     ownQuizzesRes.rows,
-            own_categories:  ownCatRes.rows,
+            own_quizzes:    ownQuizzesRes.rows,
+            own_categories: ownCatRes.rows,
         });
     } catch (err) {
         console.error(err.message);

@@ -86,6 +86,7 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
     } else {
       if (q.answers.some(a => !a.answer_text.trim())) { setFormError('Minden válasz szövegét ki kell tölteni!'); return; }
       if (!q.answers.some(a => a.is_correct))          { setFormError('Jelölj meg legalább egy helyes választ!'); return; }
+      if (q.answers.length > 6)                        { setFormError('Maximum 6 válasz adható meg!'); return; }
     }
     onSave({ ...q, points: pts });
   };
@@ -217,7 +218,100 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
   );
 }
 
-// ── Pass score szerkesztő panel a QuizEditorban ───────────────────
+// ── Privat kviz jelszo panel ────────────────────────────────
+function AccessPasswordPanel({ quizId }) {
+  const [password, setPassword]   = useState('');
+  const [loading,  setLoading]    = useState(true);
+  const [saving,   setSaving]     = useState(false);
+  const [msg,      setMsg]        = useState(null);
+  const [showPw,   setShowPw]     = useState(false);
+
+  useEffect(() => {
+    fetch(`http://localhost:5000/api/quizzes/${quizId}/access-password`)
+      .then(r => r.json())
+      .then(d => { setPassword(d.access_password || ''); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [quizId]);
+
+  const handleSave = async () => {
+    if (!password.trim()) { setMsg({ type: 'error', text: 'A jelszó nem lehet üres!' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`http://localhost:5000/api/quizzes/${quizId}/access-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_password: password.trim() }),
+      });
+      if (!res.ok) { setMsg({ type: 'error', text: 'Mentés sikertelen!' }); return; }
+      setMsg({ type: 'success', text: '✓ Jelszó sikeresen mentve!' });
+    } catch { setMsg({ type: 'error', text: 'Szerver hiba!' }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border-light)',
+      borderRadius: 14, padding: '18px 22px', maxWidth: 720, marginBottom: 20,
+      boxShadow: 'var(--shadow-sm)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>🔒 Belépési jelszó</span>
+        <span style={{ fontSize: 12, padding: '2px 9px', borderRadius: 99,
+          background: 'rgba(120,80,200,0.10)', color: '#7850c8', fontWeight: 600 }}>
+          Privát kvíz
+        </span>
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+        Ez a kvíz privát. A kitöltőknek meg kell adniuk ezt a jelszót a belépéshez.
+        Alább megtekintheted vagy módosíthatod a jelenlegi jelszót.
+      </p>
+
+      {loading ? (
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>Betöltés...</span>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div className="password-wrapper" style={{ width: 260, margin: 0 }}>
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Új jelszó"
+              style={{ width: '100%' }}
+            />
+            {password.length > 0 && (
+              <button type="button" className="toggle-pw"
+                onClick={() => setShowPw(v => !v)} tabIndex={-1}>
+                {showPw ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
+          <button className="dash-btn-primary" style={{ width: 'auto', padding: '8px 20px' }}
+            onClick={handleSave} disabled={saving}>
+            {saving ? '...' : 'Mentés'}
+          </button>
+        </div>
+      )}
+      {msg && (
+        <div className={msg.type === 'success' ? 'success-msg' : 'error-msg'} style={{ marginTop: 12, marginBottom: 0 }}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Pass score szerkesztő panel ────────────────────────────────
 function PassScorePanel({ quiz, questions, onSaved }) {
   const totalPoints = questions.reduce((s, q) => s + (q.points ?? 1), 0);
   const [passScore, setPassScore] = useState(() => quiz.pass_score ?? '');
@@ -248,51 +342,36 @@ function PassScorePanel({ quiz, questions, onSaved }) {
 
   return (
     <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border-light)',
-      borderRadius: 14,
-      padding: '18px 22px',
-      maxWidth: 720,
-      marginBottom: 20,
+      background: 'var(--surface)', border: '1px solid var(--border-light)',
+      borderRadius: 14, padding: '18px 22px', maxWidth: 720, marginBottom: 20,
       boxShadow: 'var(--shadow-sm)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>🎯 Pont alapú sikerességi küszöb</span>
-        <span style={{
-          fontSize: 12, padding: '2px 9px', borderRadius: 99,
-          background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 600,
-        }}>
+        <span style={{ fontSize: 12, padding: '2px 9px', borderRadius: 99,
+          background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 600 }}>
           Összesen: {totalPoints} pont
         </span>
       </div>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
         A kérdések jelenlegi összpontszáma <strong>{totalPoints} pont</strong>.
         Jelenleg <strong>{quiz.pass_score || 1} pontot</strong> kell elérni a kvíz sikeres teljesítéséhez.
-        Add meg alább, ha módosítani szeretnéd a sikeres teljesítéshez szükséges pontszámot.
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <input
-          type="number" min="1" max={totalPoints}
-          placeholder={`1 – ${totalPoints}`}
-          value={passScore}
-          onChange={e => setPassScore(e.target.value)}
-          style={{ width: 110 }}
-        />
+        <input type="number" min="1" max={totalPoints} placeholder={`1 – ${totalPoints}`}
+          value={passScore} onChange={e => setPassScore(e.target.value)} style={{ width: 110 }} />
         <span style={{ fontSize: 13, color: 'var(--muted)' }}>/ {totalPoints} pont szükséges a sikerhez</span>
         <button className="dash-btn-primary" style={{ width: 'auto', padding: '8px 20px' }}
           onClick={handleSave} disabled={saving}>
           {saving ? '...' : 'Mentés'}
         </button>
       </div>
-      {/* Vizuális skála */}
       {totalPoints > 0 && passScore !== '' && !isNaN(parseInt(passScore)) && parseInt(passScore) >= 1 && parseInt(passScore) <= totalPoints && (
         <div style={{ marginTop: 14 }}>
           <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
-            <div style={{
-              position: 'absolute', left: 0, top: 0, height: '100%',
+            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
               width: `${(parseInt(passScore) / totalPoints) * 100}%`,
-              background: 'var(--gold)', borderRadius: 99, transition: 'width 0.3s',
-            }} />
+              background: 'var(--gold)', borderRadius: 99, transition: 'width 0.3s' }} />
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
             {Math.round((parseInt(passScore) / totalPoints) * 100)}% a küszöb
@@ -308,12 +387,12 @@ function PassScorePanel({ quiz, questions, onSaved }) {
   );
 }
 
-// ── Pass percentage szerkesztő panel a QuizEditorban ───────────────────
+// ── Pass percentage szerkesztő panel ─────────────────────────────
 function PassPercentagePanel({ quiz, questions, onSaved }) {
   const totalPoints = questions.reduce((s, q) => s + (q.points ?? 1), 0);
   const [passPercentage, setPassPercentage] = useState(() => quiz.pass_percentage ?? '');
-  const [saving,    setSaving]    = useState(false);
-  const [msg,       setMsg]       = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [msg,    setMsg]    = useState(null);
 
   const handleSave = async () => {
     const pct = passPercentage === '' ? null : parseInt(passPercentage);
@@ -339,50 +418,35 @@ function PassPercentagePanel({ quiz, questions, onSaved }) {
 
   return (
     <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border-light)',
-      borderRadius: 14,
-      padding: '18px 22px',
-      maxWidth: 720,
-      marginBottom: 20,
+      background: 'var(--surface)', border: '1px solid var(--border-light)',
+      borderRadius: 14, padding: '18px 22px', maxWidth: 720, marginBottom: 20,
       boxShadow: 'var(--shadow-sm)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>📊 Százalék alapú sikerességi küszöb</span>
-        <span style={{
-          fontSize: 12, padding: '2px 9px', borderRadius: 99,
-          background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 600,
-        }}>
+        <span style={{ fontSize: 12, padding: '2px 9px', borderRadius: 99,
+          background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 600 }}>
           Összesen: {totalPoints} pont
         </span>
       </div>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
         Jelenleg <strong>{quiz.pass_percentage || 50}%-ot</strong> kell elérni a kvíz sikeres teljesítéséhez.
-        Add meg alább, ha módosítani szeretnéd a sikeres teljesítéshez szükséges százalékot.
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <input
-          type="number" min="1" max="100"
-          placeholder="pl. 75"
-          value={passPercentage}
-          onChange={e => setPassPercentage(e.target.value)}
-          style={{ width: 110 }}
-        />
+        <input type="number" min="1" max="100" placeholder="pl. 75"
+          value={passPercentage} onChange={e => setPassPercentage(e.target.value)} style={{ width: 110 }} />
         <span style={{ fontSize: 13, color: 'var(--muted)' }}>% szükséges a sikerhez</span>
         <button className="dash-btn-primary" style={{ width: 'auto', padding: '8px 20px' }}
           onClick={handleSave} disabled={saving}>
           {saving ? '...' : 'Mentés'}
         </button>
       </div>
-      {/* Vizuális skála */}
       {totalPoints > 0 && passPercentage !== '' && !isNaN(parseInt(passPercentage)) && parseInt(passPercentage) >= 1 && parseInt(passPercentage) <= 100 && (
         <div style={{ marginTop: 14 }}>
           <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
-            <div style={{
-              position: 'absolute', left: 0, top: 0, height: '100%',
+            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
               width: `${parseInt(passPercentage)}%`,
-              background: 'var(--gold)', borderRadius: 99, transition: 'width 0.3s',
-            }} />
+              background: 'var(--gold)', borderRadius: 99, transition: 'width 0.3s' }} />
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
             {Math.max(1, Math.round((parseInt(passPercentage) / 100) * totalPoints))} pont kell a sikerhez
@@ -526,7 +590,11 @@ export default function QuizEditor() {
         <div className="error-msg" style={{ maxWidth: 600, marginBottom: 16 }}>{saveError}</div>
       )}
 
-      {/* Pont alapú küszöb panel – csak ha pass_mode === 'score' és vannak kérdések */}
+      {/* Privat kviz jelszo panel */}
+      {quiz && quiz.is_public === false && (
+        <AccessPasswordPanel quizId={id} />
+      )}
+
       {quiz && quiz.pass_mode === 'score' && questions.length > 0 && (
         <PassScorePanel
           quiz={quiz}
@@ -535,7 +603,6 @@ export default function QuizEditor() {
         />
       )}
 
-      {/* Százalék alapú küszöb panel – csak ha pass_mode === 'percentage' és vannak kérdések */}
       {quiz && quiz.pass_mode === 'percentage' && questions.length > 0 && (
         <PassPercentagePanel
           quiz={quiz}
@@ -555,11 +622,8 @@ export default function QuizEditor() {
                 <div className="editor-q-header">
                   <span className="editor-q-num">{idx + 1}.</span>
                   <span className="editor-q-type-badge">{typeBadge(q)}</span>
-                  {/* Pont badge */}
-                  <span style={{
-                    fontSize: 12, padding: '2px 8px', borderRadius: 99, marginLeft: 4,
-                    background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 700,
-                  }}>
+                  <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 99, marginLeft: 4,
+                    background: 'var(--gold-subtle)', color: 'var(--gold)', fontWeight: 700 }}>
                     {q.points ?? 1} pt
                   </span>
                   <div style={{ flex: 1 }} />

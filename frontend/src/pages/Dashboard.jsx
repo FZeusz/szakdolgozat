@@ -58,9 +58,6 @@ export default function Dashboard() {
           <button className="avatar-btn" onClick={() => navigate('/dashboard/profile')} title="Profil">
             {initials}
           </button>
-          <button className="dash-logout-btn" onClick={handleLogout}>
-            Kijelentkezés
-          </button>
         </div>
       </header>
 

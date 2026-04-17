@@ -225,7 +225,7 @@ export default function DashboardAdmin() {
                             color: u.role === 'ADMIN' ? 'var(--gold)' : '#5a7de0',
                             fontWeight: 700,
                           }}>
-                            {u.role === 'ADMIN' ? '👑 Admin' : '🎓 Student'}
+                            {u.role === 'ADMIN' ? '👑 Admin' : '👥 User'}
                           </span>
                           {isSelf && (
                             <span style={{ fontSize: 11, color: 'var(--muted)' }}>(te)</span>
