@@ -71,7 +71,7 @@ router.get('/:userId/stats-data', async (req, res) => {
     try {
         const { userId } = req.params;
 
-        const [attemptCount, avgRow, successRow, bestRow] = await Promise.all([
+        const [attemptCount, avgRow, successRow, streakRow] = await Promise.all([
             pool.query(
                 `SELECT COUNT(*)::int AS cnt FROM quiz_attempts qa WHERE qa.user_id = $1`,
                 [userId]
@@ -85,17 +85,57 @@ router.get('/:userId/stats-data', async (req, res) => {
                  WHERE qa.user_id = $1 AND qa.total_questions > 0 AND (q.hide_results IS NULL OR q.hide_results = false)`,
                 [userId]
             ),
+            // Sikeres teljesítés:
+            //   – ha volt sikerességi küszöb (pass_mode != 'none') → is_successful = true  ÉS  hide_results = false
+            //   – ha nem volt küszöb (pass_mode = 'none')          → elért % >= 80          ÉS  hide_results = false
             pool.query(
-                `SELECT COUNT(*)::int AS cnt FROM quiz_attempts WHERE user_id = $1 AND is_successful = true`,
-                [userId]
-            ),
-            pool.query(
-                `SELECT ROUND(MAX(
-                    qa.score::numeric / NULLIF(COALESCE(qa.total_points, qa.total_questions), 0) * 100
-                 ))::int AS best_pct
+                `SELECT COUNT(*)::int AS cnt
                  FROM quiz_attempts qa
                  JOIN quizzes q ON q.id = qa.quiz_id
-                 WHERE qa.user_id = $1 AND qa.total_questions > 0 AND (q.hide_results IS NULL OR q.hide_results = false)`,
+                 WHERE qa.user_id = $1
+                   AND (q.hide_results IS NULL OR q.hide_results = false)
+                   AND (
+                     (q.pass_mode IS DISTINCT FROM 'none' AND qa.is_successful = true)
+                     OR
+                     (
+                       (q.pass_mode IS NULL OR q.pass_mode = 'none')
+                       AND COALESCE(qa.total_points, qa.total_questions) > 0
+                       AND ROUND(
+                             qa.score::numeric
+                             / NULLIF(COALESCE(qa.total_points, qa.total_questions), 0)
+                             * 100
+                           ) >= 80
+                     )
+                   )`,
+                [userId]
+            ),
+            // Aktív széria: hány egymást követő nap volt legalább egy kitöltés
+            // (ma VAGY tegnap óta megszakítás nélkül – tehát a mai nap még "nyitva" van)
+            // Trükk: ha a napokat és sorszámaikat kivonjuk egymásból, az egymást követő
+            // napok ugyanabba a csoportba esnek (azonos különbség). Majd az a csoport
+            // számít aktívnak, amelyiknek az utolsó napja ma vagy tegnap volt.
+            pool.query(
+                `WITH daily AS (
+                     SELECT DISTINCT DATE(completed_at) AS d
+                     FROM quiz_attempts
+                     WHERE user_id = $1 AND completed_at IS NOT NULL
+                 ),
+                 grp AS (
+                     SELECT d,
+                            d - (ROW_NUMBER() OVER (ORDER BY d))::int AS g
+                     FROM daily
+                 ),
+                 streaks AS (
+                     SELECT g, MAX(d) AS last_day, COUNT(*)::int AS len
+                     FROM grp
+                     GROUP BY g
+                 )
+                 SELECT COALESCE(
+                     (SELECT len FROM streaks
+                      WHERE last_day >= CURRENT_DATE - 1
+                      ORDER BY len DESC LIMIT 1),
+                     0
+                 )::int AS streak_days`,
                 [userId]
             ),
         ]);
@@ -211,10 +251,10 @@ router.get('/:userId/stats-data', async (req, res) => {
 
         res.json({
             player_stats: {
-                attempt_count:   attemptCount.rows[0].cnt,
-                avg_percentage:  avgRow.rows[0].avg_pct       ?? 0,
-                success_count:   successRow.rows[0].cnt,
-                best_percentage: bestRow.rows[0].best_pct     ?? 0,
+                attempt_count:  attemptCount.rows[0].cnt,
+                avg_percentage: avgRow.rows[0].avg_pct    ?? 0,
+                success_count:  successRow.rows[0].cnt,
+                streak_days:    streakRow.rows[0].streak_days ?? 0,
             },
             monthly,
             category_performance: catRes.rows,

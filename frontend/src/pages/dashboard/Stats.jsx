@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catColor } from './shared';
 
-const pctColor = (pct) =>
-  pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--gold)' : 'var(--error)';
+const pctColor = (pct) => {
+  return pct >= 80 ? 'var(--success)' :
+         pct >= 60 ? 'var(--good)' :
+         pct >= 40 ? 'var(--neutral)' :
+         pct >= 20 ? 'var(--warning)' :
+                     'var(--error)';
+};
 
 // ── Kis segédkomponensek ────────────────────────────────────────
 
@@ -24,12 +29,15 @@ function SectionDivider({ icon, title, subtitle }) {
   );
 }
 
-function StatCard({ icon, value, label, color }) {
+function StatCard({ icon, value, label, color, sub }) {
   return (
     <div className="stat-card">
       <span className="stat-card-icon">{icon}</span>
       <span className="stat-card-value" style={color ? { color } : {}}>{value}</span>
       <span className="stat-card-label">{label}</span>
+      {sub && (
+        <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{sub}</span>
+      )}
     </div>
   );
 }
@@ -50,18 +58,6 @@ function MonthlyChart({ monthly }) {
         {monthly.map(b => (
           <div key={b.label} className="bar-col" style={{ position: 'relative' }}>
             <div className="bar-wrap" style={{ position: 'relative' }}>
-              {/* Átlag% vonal jelzése a bar tetején */}
-              {b.val > 0 && b.avg_pct !== null && (
-                <div style={{
-                  position: 'absolute', bottom: `${(b.val / maxVal) * 100}%`,
-                  left: '50%', transform: 'translateX(-50%)',
-                  fontSize: 9, color: pctColor(b.avg_pct),
-                  fontWeight: 700, whiteSpace: 'nowrap',
-                  marginBottom: 2,
-                }}>
-                  {b.avg_pct}%
-                </div>
-              )}
               <div
                 className="bar-fill"
                 style={{
@@ -72,13 +68,27 @@ function MonthlyChart({ monthly }) {
                 }}
               />
             </div>
+            {/* Hónap neve */}
             <span className="bar-label">{b.label}</span>
-            <span className="bar-val">{b.val}</span>
+            {/* Darabszám + átlag% UGYANABBAN a sorban */}
+            <span className="bar-val">
+              {b.val > 0 ? b.val : 0}
+              {b.val > 0 && b.avg_pct !== null && (
+                <span style={{
+                  marginLeft: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: pctColor(b.avg_pct),
+                }}>
+                  {b.avg_pct}%
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>
-        Az oszlopok színe az adott havi átlageredményt tükrözi · 🟢 ≥80% · 🟡 ≥60% · 🔴 &lt;60%
+        Az oszlopok színe és a szám melletti % az adott havi átlageredményt tükrözi
       </p>
     </div>
   );
@@ -115,6 +125,20 @@ function CatPerfRow({ category, avg_pct, best_pct, cnt, showBest = false }) {
       )}
     </div>
   );
+}
+
+// ── Streak megjelenítő segédfüggvény ───────────────────────────
+function streakLabel(days) {
+  if (days === 0) return 'Nincs aktív széria';
+  if (days === 1) return '1 napos széria';
+  return `${days} napos széria`;
+}
+
+function streakColor(days) {
+  if (days === 0) return 'var(--muted)';
+  if (days < 3)  return 'var(--warning)';
+  if (days < 7)  return 'var(--good)';
+  return 'var(--success)';
 }
 
 // ── Főkomponens ─────────────────────────────────────────────────
@@ -158,7 +182,8 @@ export default function DashboardStats() {
   const { player_stats, monthly, category_performance, recent_attempts,
           creator_stats, own_quizzes, own_categories } = data;
 
-  const maxPlays    = Math.max(...own_quizzes.map(q => q.play_count), 1);
+  const maxPlays   = Math.max(...own_quizzes.map(q => q.play_count), 1);
+  const streakDays = player_stats.streak_days ?? 0;
 
   return (
     <div className="tab-content">
@@ -180,12 +205,30 @@ export default function DashboardStats() {
 
       {/* Összesítő kártyák */}
       <div className="stat-grid" style={{ marginBottom: 28 }}>
-        <StatCard icon="✅" value={player_stats.attempt_count}  label="Kitöltött kvízek" />
-        <StatCard icon="🎯" value={(player_stats.avg_percentage ?? 0) + '%'} label="Átlagos eredmény"
-          color={player_stats.avg_percentage ? pctColor(player_stats.avg_percentage) : undefined} />
-        <StatCard icon="🏆" value={(player_stats.best_percentage ?? 0) + '%'} label="Legjobb eredmény"
-          color={player_stats.best_percentage ? pctColor(player_stats.best_percentage) : undefined} />
-        <StatCard icon="🌟" value={player_stats.success_count}  label="Sikeres teljesítés" color="var(--success)" />
+        <StatCard
+          icon="✅"
+          value={player_stats.attempt_count}
+          label="Kitöltött kvízek"
+        />
+        <StatCard
+          icon="🎯"
+          value={(player_stats.avg_percentage ?? 0) + '%'}
+          label="Átlagos eredmény"
+          color={player_stats.avg_percentage ? pctColor(player_stats.avg_percentage) : undefined}
+        />
+        <StatCard
+          icon={streakDays > 0 ? '🔥' : '💤'}
+          value={streakDays}
+          label="Aktív széria (nap)"
+          color={streakColor(streakDays)}
+          sub={streakLabel(streakDays)}
+        />
+        <StatCard
+          icon="🌟"
+          value={player_stats.success_count}
+          label="Sikeres teljesítés"
+          color="var(--success)"
+        />
       </div>
 
       {/* Havi kitöltések + Kategória átlagok */}
@@ -206,7 +249,6 @@ export default function DashboardStats() {
                   key={r.category}
                   category={r.category}
                   avg_pct={r.avg_pct}
-                  best_pct={r.best_pct}
                   cnt={r.cnt}
                   showBest
                 />
@@ -216,7 +258,7 @@ export default function DashboardStats() {
         </div>
       </div>
 
-      {/* Legutóbbi kitöltések */}
+      {/* ── Legutóbbi kitöltések – ugyanolyan mint a főoldali "Legutóbbi eredményeid" ── */}
       <div className="section" style={{ marginTop: 8 }}>
         <h3 className="section-title" style={{ marginBottom: 12 }}>Legutóbbi kitöltéseim</h3>
         {recent_attempts.length === 0 ? (
@@ -230,32 +272,42 @@ export default function DashboardStats() {
           </div>
         ) : (
           <div className="result-list">
-            {recent_attempts.map((a, i) => {
-              const pct = a.percentage;
-              return (
-                <div key={a.id ?? i} className="result-row">
-                  <div className="result-info">
-                    <span className="result-name">{a.quiz_title}</span>
-                    <span className="result-date">
-                      {a.category || ''}
-                      {a.finished_at
-                        ? (a.category ? ' · ' : '') + new Date(a.finished_at).toLocaleDateString('hu-HU')
-                        : ''}
-                    </span>
-                  </div>
-                  <div className="result-right" style={{ gap: 8 }}>
-                    <div className="pct-bar-wrap">
-                      <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct) }} />
-                    </div>
-                    <span className="result-score" style={{ color: pctColor(pct) }}>
-                      {pct}%
-                      {a.is_successful === true  && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓</span>}
-                      {a.is_successful === false && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗</span>}
-                    </span>
-                  </div>
+            {recent_attempts.map((r, i) => (
+              <div key={r.id ?? i} className="result-row">
+                <div className="result-info">
+                  <span className="result-name">{r.quiz_title}</span>
+                  <span className="result-date">
+                    {r.category || ''}
+                    {r.finished_at
+                      ? (r.category ? ' · ' : '') + new Date(r.finished_at).toLocaleDateString('hu-HU')
+                      : ''}
+                  </span>
                 </div>
-              );
-            })}
+                <div className="result-right">
+                  <div className="pct-bar-wrap">
+                    <div className="pct-bar" style={{
+                      width: `${r.percentage}%`,
+                      background: pctColor(r.percentage),
+                    }} />
+                  </div>
+                  <span className="result-score" style={{ color: pctColor(r.percentage) }}>
+                    {r.score} / {r.total_points} — {r.percentage}%
+                    {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
+                    {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
+                  </span>
+                  {!r.one_attempt && r.quiz_id && (
+                    <button
+                      className="icon-btn"
+                      title="Kvíz újra kitöltése"
+                      style={{ marginLeft: 8, fontSize: 13, flexShrink: 0 }}
+                      onClick={() => navigate(`/quiz/${r.quiz_id}`)}
+                    >
+                      🔄
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

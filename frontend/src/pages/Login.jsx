@@ -38,7 +38,7 @@ export default function Login() {
 
         {/* Navbar */}
         <nav className="navbar">
-          <span className="navbar-logo" onClick={() => navigate('/')}>Kvíz oldal</span>
+          <span className="navbar-logo" onClick={() => navigate('/')}>KvízPro</span>
           <p className="navbar-hint">
             Még nincs fiókod?
             <span onClick={() => navigate('/register')}>Regisztrálj</span>

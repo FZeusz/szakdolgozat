@@ -75,12 +75,13 @@ export default function QuizStats() {
   const currentTotalPoints = quiz.total_points
     ?? (questions ? questions.reduce((s, q) => s + (q.points ?? 1), 0) : 1);
 
-  const pctColor = (pct, passed) => {
-    if (passed === true)  return 'var(--success)';
-    if (passed === false) return 'var(--error)';
-    const hue = Math.round(pct * 1.2); // 0 (piros) -> 60 (sárga) -> 120 (zöld)
-    return `hsl(${hue}, 75%, 45%)`;
-  };
+const pctColor = (pct) => {
+  return pct >= 80 ? 'var(--success)' :
+         pct >= 60 ? 'var(--good)' :
+         pct >= 40 ? 'var(--neutral)' :
+         pct >= 20 ? 'var(--warning)' :
+                     'var(--error)';
+};
 
   const passLabel = () => {
     if (quiz.pass_score)      return `Sikeres: ≥ ${quiz.pass_score} pont`;
@@ -201,9 +202,9 @@ export default function QuizStats() {
                   </div>
                   <div className="result-right" style={{ gap: 8 }}>
                     <div className="pct-bar-wrap">
-                      <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct, passed) }} />
+                      <div className="pct-bar" style={{ width: `${pct}%`, background: pctColor(pct) }} />
                     </div>
-                    <span className="result-score" style={{ color: pctColor(pct, passed) }}>
+                    <span className="result-score" style={{ color: pctColor(pct) }}>
                       {a.score} / {tp} pt – {pct}%
                     </span>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>

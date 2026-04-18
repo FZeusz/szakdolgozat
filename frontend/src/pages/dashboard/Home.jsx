@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { catColor } from './shared';
 
-const pctColor = (pct, passed) => {
-  if (passed === true)  return 'var(--success)';
-  if (passed === false) return 'var(--error)';
-  return `hsl(${Math.round(pct * 1.2)}, 75%, 45%)`;
+const pctColor = (pct) => {
+  return pct >= 80 ? 'var(--success)' :
+         pct >= 60 ? 'var(--good)' :
+         pct >= 40 ? 'var(--neutral)' :
+         pct >= 20 ? 'var(--warning)' :
+                     'var(--error)';
 };
 
 export default function DashboardHome() {
@@ -101,10 +103,10 @@ export default function DashboardHome() {
                   <div className="pct-bar-wrap">
                     <div className="pct-bar" style={{
                       width: `${r.percentage}%`,
-                      background: pctColor(r.percentage, r.is_successful),
+                      background: pctColor(r.percentage),
                     }} />
                   </div>
-                  <span className="result-score" style={{ color: pctColor(r.percentage, r.is_successful) }}>
+                  <span className="result-score" style={{ color: pctColor(r.percentage) }}>
                     {r.score} / {r.total_points} — {r.percentage}%
                     {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
                     {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
