@@ -30,13 +30,24 @@ export const MOCK_RECENT = [
   { quiz: 'Csillagászat kvíz',        score: '11/18', pct: 61, date: '2026-03-15' },
 ];
 
+// FONTOS: minden szín 6 jegyű hex (#rrggbb), hogy a badge háttér
+// (#rrggbb + '22' = #rrggbb22, érvényes 8 jegyű RGBA hex) helyesen jelenjen meg.
+// A 3 jegyű #888 + '22' = '#88822' (5 karakter → érvénytelen CSS) volt a hiba.
 export const CAT_COLORS = {
-  Történelem: '#e07b4a', Matematika: '#5a7de0', Földrajz: '#4ab87a',
-  Szórakozás: '#c05ab8', Tech: '#4a9de0', Főzés: '#e0a44a',
-  Nyelv: '#7a5ae0', Tudomány: '#4ab8b8', Irodalom: '#b85a5a',
+  Történelem: '#e07b4a',
+  Matematika: '#5a7de0',
+  Földrajz:   '#4ab87a',
+  Szórakozás: '#c05ab8',
+  Tech:       '#4a9de0',
+  Főzés:      '#e0a44a',
+  Nyelv:      '#7a5ae0',
+  Tudomány:   '#4ab8b8',
+  Irodalom:   '#b85a5a',
+  Egyéb:      '#888888',   // ← 6 jegyű hex, így '#888888' + '22' = '#88888822' (érvényes)
 };
 
-export const catColor = (c) => CAT_COLORS[c] || '#888';
+// Ismeretlen kategória esetén is 6 jegyű hex-et ad vissza
+export const catColor = (c) => CAT_COLORS[c] || '#888888';
 
 // ── Csillag értékelés komponens ───────────────────────────────────
 export function Stars({ r }) {

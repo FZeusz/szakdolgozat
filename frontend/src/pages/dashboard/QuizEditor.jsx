@@ -95,7 +95,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
 
   return (
     <div className="qform">
-      {/* Típus választó */}
       <div className="qform-type-row">
         <button type="button"
           className={`vis-btn ${q.question_type === 'multiple_choice' ? 'active' : ''}`}
@@ -109,7 +108,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
         </button>
       </div>
 
-      {/* Többes mód (csak multiple_choice) */}
       {q.question_type === 'multiple_choice' && (
         <div className="qform-multi-row">
           <label className="qform-multi-label" style={{ cursor: 'pointer' }}>
@@ -123,7 +121,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
         </div>
       )}
 
-      {/* Kérdés szövege */}
       <div className="field">
         <label>Kérdés szövege</label>
         <textarea className="field-textarea" rows={2}
@@ -132,7 +129,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
           onChange={e => setQ(prev => ({ ...prev, question_text: e.target.value }))} />
       </div>
 
-      {/* Szöveges válasz típus */}
       {q.question_type === 'text_input' && (
         <div className="field">
           <label>Helyes válasz szövege</label>
@@ -145,7 +141,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
         </div>
       )}
 
-      {/* Választós válaszok */}
       {q.question_type !== 'text_input' && (
         <div className="field">
           <label>
@@ -186,7 +181,6 @@ function QuestionForm({ initial, onSave, onCancel, saving }) {
         </div>
       )}
 
-      {/* Pontszám */}
       <div className="field">
         <label>Pontszám</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -574,7 +568,8 @@ export default function QuizEditor() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="dash-btn-outline" onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>
+          <button className="dash-btn-outline"
+            onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>
             ← Vissza a listához
           </button>
           <button className="dash-btn-primary"
@@ -583,6 +578,11 @@ export default function QuizEditor() {
             title={questions.length === 0 ? 'Adj hozzá legalább egy kérdést!' : ''}>
             ▶ Előnézet / Kitöltés
           </button>
+          {/* ── ÚJ: Statisztikák gomb ── */}
+          <button className="dash-btn-outline"
+            onClick={() => navigate(`/dashboard/quizzes/${id}/stats`)}>
+            📊 Statisztikák
+          </button>
         </div>
       </div>
 
@@ -590,7 +590,6 @@ export default function QuizEditor() {
         <div className="error-msg" style={{ maxWidth: 600, marginBottom: 16 }}>{saveError}</div>
       )}
 
-      {/* Privat kviz jelszo panel */}
       {quiz && quiz.is_public === false && (
         <AccessPasswordPanel quizId={id} />
       )}

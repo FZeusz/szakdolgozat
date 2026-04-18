@@ -65,6 +65,22 @@ function ToggleBtn({ onClick, title }) {
   );
 }
 
+// ── Kategória jelzés (pont + színes szöveg) ────────────────────
+// Újrafelhasználható: result-date-n belül mindenütt ugyanígy néz ki
+function CatLabel({ category }) {
+  if (!category) return null;
+  const col = catColor(category);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{
+        display: 'inline-block', width: 8, height: 8,
+        borderRadius: '50%', background: col, flexShrink: 0,
+      }} />
+      <span style={{ color: col, fontWeight: 500 }}>{category}</span>
+    </span>
+  );
+}
+
 // ── Havi bar chart (kitöltések + átlag%) ───────────────────────
 function MonthlyChart({ monthly }) {
   const maxVal = Math.max(...monthly.map(b => b.val), 1);
@@ -150,12 +166,6 @@ function CatPerfRow({ category, avg_pct, cnt, maxCnt, sortBy }) {
 }
 
 // ── Saját kategória-sor (létrehozóként) ────────────────────────
-// sortBy: 'plays' → bár=kitöltések száma alapján
-//   - jobb szám (színes): total_plays×
-//   - bal info (szürke): quiz_count kvíz · avg_score_pct% (az átlagos kitöltői eredmény)
-// sortBy: 'pct' → bár=% alapján
-//   - jobb szám (színes): avg_score_pct%
-//   - bal info (szürke): quiz_count kvíz · total_plays kitöltés
 function OwnCatRow({ category, quiz_count, total_plays, avg_score_pct, maxPlays, sortBy }) {
   const col      = catColor(category);
   const barWidth = sortBy === 'plays'
@@ -167,7 +177,6 @@ function OwnCatRow({ category, quiz_count, total_plays, avg_score_pct, maxPlays,
     <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
         <span style={{ fontSize: 13, color: col, fontWeight: 600 }}>{category}</span>
-        {/* Bal info: ha kitöltések szerint → kvíz db + átlag%; ha % szerint → kvíz db + kitöltés db */}
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>
           {quiz_count} kvíz
           {sortBy === 'plays'
@@ -179,7 +188,6 @@ function OwnCatRow({ category, quiz_count, total_plays, avg_score_pct, maxPlays,
         <div style={{ flex: 1, height: 6, background: 'var(--border-light)', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${barWidth}%`, background: barColor, borderRadius: 99 }} />
         </div>
-        {/* Jobb szám (színes): ha kitöltések szerint → total_plays×; ha % szerint → avg_score_pct% */}
         {sortBy === 'plays' ? (
           <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 38, textAlign: 'right' }}>
             {total_plays}×
@@ -351,6 +359,11 @@ export default function DashboardStats() {
                   />
                 ))}
               </div>
+              {sortedCategories.length > CAT_VISIBLE && (
+                <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 6 }}>
+                  ↕ {sortedCategories.length - CAT_VISIBLE} további kategória görgetéssel
+                </p>
+              )}
             </>
           )}
         </div>
@@ -370,33 +383,20 @@ export default function DashboardStats() {
           </div>
         ) : (
           <div className="result-list">
-            {recent_attempts.map((r, i) => {
-              const catCol = r.category ? catColor(r.category) : null;
-              return (
-                <div key={r.id ?? i} className="result-row">
-                  <div className="result-info">
-                    <span className="result-name">{r.quiz_title}</span>
-                    <span className="result-date" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {catCol && (
-                        <span style={{
-                          display: 'inline-block',
-                          width: 8, height: 8,
-                          borderRadius: '50%',
-                          background: catCol,
-                          flexShrink: 0,
-                        }} />
-                      )}
-                      <span style={{ color: catCol ?? undefined, fontWeight: catCol ? 500 : undefined }}>
-                        {r.category || ''}
+            {recent_attempts.map((r, i) => (
+              <div key={r.id ?? i} className="result-row">
+                <div className="result-info">
+                  <span className="result-name">{r.quiz_title}</span>
+                  <span className="result-date" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {r.category && <CatLabel category={r.category} />}
+                    {r.finished_at && (
+                      <span style={{ color: 'var(--muted)' }}>
+                        {r.category ? '· ' : ''}{new Date(r.finished_at).toLocaleDateString('hu-HU')}
                       </span>
-                      {r.finished_at && (
-                        <span style={{ color: 'var(--muted)', fontWeight: 'normal' }}>
-                          {r.category ? '· ' : ''}{new Date(r.finished_at).toLocaleDateString('hu-HU')}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="result-right">
+                    )}
+                  </span>
+                </div>
+                <div className="result-right">
                   <div className="pct-bar-wrap">
                     <div className="pct-bar" style={{ width: `${r.percentage}%`, background: pctColor(r.percentage) }} />
                   </div>
@@ -415,10 +415,9 @@ export default function DashboardStats() {
                       🔄
                     </button>
                   )}
-                  </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -456,7 +455,7 @@ export default function DashboardStats() {
       ) : (
         <>
           <div className="stats-row">
-            {/* Legtöbbet kitöltött kvízek */}
+            {/* Legtöbbet kitöltött kvízeim */}
             <div className="stats-panel" style={{ flex: 2 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 className="section-title" style={{ margin: 0 }}>Legtöbbet kitöltött kvízeim</h3>
@@ -479,10 +478,13 @@ export default function DashboardStats() {
                             </span>
                           )}
                         </div>
-                        <span className="result-date">
-                          {q.category || '–'}
-                          {` · ${q.question_count ?? 0} kérdés`}
-                          {q.avg_score_pct !== null && ` · kitöltői átlag: ${q.avg_score_pct}%`}
+                        {/* Kategória: színes pont + szöveg, utána meta */}
+                        <span className="result-date" style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          {q.category && <CatLabel category={q.category} />}
+                          <span style={{ color: 'var(--muted)' }}>
+                            {q.category ? '· ' : ''}{q.question_count ?? 0} kérdés
+                            {q.avg_score_pct !== null ? ` · kitöltői átlag: ${q.avg_score_pct}%` : ''}
+                          </span>
                         </span>
                       </div>
                       <div className="result-right" style={{ gap: 8 }}>
@@ -502,7 +504,7 @@ export default function DashboardStats() {
               )}
             </div>
 
-            {/* Kitöltések kategóriánként – javított adatmegjelenítéssel */}
+            {/* Kitöltések kategóriánként */}
             {own_categories.length > 0 && (
               <div className="stats-panel" style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

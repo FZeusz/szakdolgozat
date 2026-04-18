@@ -75,13 +75,13 @@ export default function QuizStats() {
   const currentTotalPoints = quiz.total_points
     ?? (questions ? questions.reduce((s, q) => s + (q.points ?? 1), 0) : 1);
 
-const pctColor = (pct) => {
-  return pct >= 80 ? 'var(--success)' :
-         pct >= 60 ? 'var(--good)' :
-         pct >= 40 ? 'var(--neutral)' :
-         pct >= 20 ? 'var(--warning)' :
-                     'var(--error)';
-};
+  const pctColor = (pct) => {
+    return pct >= 80 ? 'var(--success)' :
+           pct >= 60 ? 'var(--good)' :
+           pct >= 40 ? 'var(--neutral)' :
+           pct >= 20 ? 'var(--warning)' :
+                       'var(--error)';
+  };
 
   const passLabel = () => {
     if (quiz.pass_score)      return `Sikeres: ≥ ${quiz.pass_score} pont`;
@@ -89,8 +89,6 @@ const pctColor = (pct) => {
     return null;
   };
 
-  // is_successful: a beküldéskor egyszer elmentett érték – sosem újraszámolt.
-  // null = nem volt küszöb beállítva a kitöltés pillanatában.
   const isPassed = (attempt) => attempt.is_successful ?? null;
 
   return (
@@ -116,11 +114,17 @@ const pctColor = (pct) => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="dash-btn-outline"
+            onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>
+            ← Vissza a listához
+          </button>
           {attempts.length > 0 && (
             <button className="dash-btn-danger" onClick={handleDeleteAll}>🗑️ Összes törlése</button>
           )}
-          <button className="dash-btn-outline" onClick={() => navigate(isAdmin ? '/dashboard/admin' : '/dashboard/quizzes')}>
-            ← Vissza a listához
+          {/* ── ÚJ: Szerkesztő gomb ── */}
+          <button className="dash-btn-outline"
+            onClick={() => navigate(`/dashboard/quizzes/${id}/edit`)}>
+            ✏️ Szerkesztő
           </button>
         </div>
       </div>
@@ -151,7 +155,6 @@ const pctColor = (pct) => {
           </span>
           <span className="stat-card-label">Különböző kitöltő</span>
         </div>
-        {/* Sikeres kártya: csak ha van legalább egy attempt ahol is_successful nem null */}
         {attempts.some(a => a.is_successful !== null) && (
           <div className="stat-card">
             <span className="stat-card-icon">✅</span>
@@ -183,7 +186,7 @@ const pctColor = (pct) => {
 
           {attempts.map((a, i) => {
             const isExpanded = expandedIds.has(a.id);
-            const passed     = isPassed(a);   // a.is_successful – eltárolt érték
+            const passed     = isPassed(a);
             const pct        = a.percentage;
             const tp         = a.total_points;
 
