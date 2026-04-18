@@ -46,6 +46,25 @@ function EmptyHint({ text }) {
   return <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>{text}</p>;
 }
 
+// ── Újrafelhasználható toggle gomb ─────────────────────────────
+function ToggleBtn({ onClick, title }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 15, padding: '2px 4px', borderRadius: 6,
+        opacity: 0.7, transition: 'opacity .15s', color: 'var(--text)',
+      }}
+      onMouseEnter={e => e.currentTarget.style.opacity = 1}
+      onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
+    >
+      🔄
+    </button>
+  );
+}
+
 // ── Havi bar chart (kitöltések + átlag%) ───────────────────────
 function MonthlyChart({ monthly }) {
   const maxVal = Math.max(...monthly.map(b => b.val), 1);
@@ -54,7 +73,7 @@ function MonthlyChart({ monthly }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div className="bar-chart" style={{ alignItems: 'flex-end' }}>
+      <div className="bar-chart" style={{ alignItems: 'flex-end', minHeight: 160 }}>
         {monthly.map(b => (
           <div key={b.label} className="bar-col" style={{ position: 'relative' }}>
             <div className="bar-wrap" style={{ position: 'relative' }}>
@@ -62,24 +81,15 @@ function MonthlyChart({ monthly }) {
                 className="bar-fill"
                 style={{
                   height:     `${(b.val / maxVal) * 100}%`,
-                  background: b.avg_pct !== null
-                    ? pctColor(b.avg_pct)
-                    : 'var(--gold)',
+                  background: b.avg_pct !== null ? pctColor(b.avg_pct) : 'var(--gold)',
                 }}
               />
             </div>
-            {/* Hónap neve */}
             <span className="bar-label">{b.label}</span>
-            {/* Darabszám + átlag% UGYANABBAN a sorban */}
             <span className="bar-val">
               {b.val > 0 ? b.val : 0}
               {b.val > 0 && b.avg_pct !== null && (
-                <span style={{
-                  marginLeft: 4,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: pctColor(b.avg_pct),
-                }}>
+                <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, color: pctColor(b.avg_pct) }}>
                   {b.avg_pct}%
                 </span>
               )}
@@ -94,12 +104,19 @@ function MonthlyChart({ monthly }) {
   );
 }
 
-// ── Kategória teljesítmény-sor ──────────────────────────────────
-function CatPerfRow({ category, avg_pct, best_pct, cnt, showBest = false }) {
-  const col = catColor(category);
+// ── Kategória teljesítmény-sor (kitöltőként) ───────────────────
+function CatPerfRow({ category, avg_pct, cnt, maxCnt, sortBy }) {
+  const col      = catColor(category);
+  const barWidth = sortBy === 'cnt'
+    ? (maxCnt > 0 ? (cnt / maxCnt) * 100 : 0)
+    : avg_pct;
+  const barColor = sortBy === 'cnt' ? col : pctColor(avg_pct);
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0',
-      borderBottom: '1px solid var(--border-light)' }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '8px 0', borderBottom: '1px solid var(--border-light)',
+    }}>
       <span style={{
         minWidth: 10, height: 10, borderRadius: '50%',
         background: col, flexShrink: 0, display: 'inline-block',
@@ -107,33 +124,84 @@ function CatPerfRow({ category, avg_pct, best_pct, cnt, showBest = false }) {
       <span style={{ flex: 1, fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>
         {category}
       </span>
-      {cnt !== undefined && (
-        <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 52, textAlign: 'right' }}>
+      {sortBy === 'pct' ? (
+        <span style={{ fontSize: 13, fontWeight: 700, color: col, minWidth: 38, textAlign: 'right' }}>
           {cnt}×
+        </span>
+      ) : (
+        <span style={{ fontSize: 13, fontWeight: 700, color: pctColor(avg_pct), minWidth: 36, textAlign: 'right' }}>
+          {avg_pct}%
         </span>
       )}
       <div style={{ width: 100, height: 6, background: 'var(--border-light)', borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${avg_pct}%`, background: pctColor(avg_pct), borderRadius: 99 }} />
+        <div style={{ height: '100%', width: `${barWidth}%`, background: barColor, borderRadius: 99 }} />
       </div>
-      <span style={{ fontSize: 13, fontWeight: 700, color: pctColor(avg_pct), minWidth: 38, textAlign: 'right' }}>
-        {avg_pct}%
-      </span>
-      {showBest && best_pct !== null && best_pct !== undefined && (
-        <span style={{ fontSize: 11, color: 'var(--gold)', minWidth: 46, textAlign: 'right' }}>
-          ▲{best_pct}%
+      {sortBy === 'pct' ? (
+        <span style={{ fontSize: 13, fontWeight: 700, color: pctColor(avg_pct), minWidth: 38, textAlign: 'right' }}>
+          {avg_pct}%
+        </span>
+      ) : (
+        <span style={{ fontSize: 13, fontWeight: 700, color: col, minWidth: 38, textAlign: 'right' }}>
+          {cnt}×
         </span>
       )}
     </div>
   );
 }
 
-// ── Streak megjelenítő segédfüggvény ───────────────────────────
+// ── Saját kategória-sor (létrehozóként) ────────────────────────
+// sortBy: 'plays' → bár=kitöltések száma alapján
+//   - jobb szám (színes): total_plays×
+//   - bal info (szürke): quiz_count kvíz · avg_score_pct% (az átlagos kitöltői eredmény)
+// sortBy: 'pct' → bár=% alapján
+//   - jobb szám (színes): avg_score_pct%
+//   - bal info (szürke): quiz_count kvíz · total_plays kitöltés
+function OwnCatRow({ category, quiz_count, total_plays, avg_score_pct, maxPlays, sortBy }) {
+  const col      = catColor(category);
+  const barWidth = sortBy === 'plays'
+    ? (maxPlays > 0 ? (total_plays / maxPlays) * 100 : 0)
+    : (avg_score_pct !== null ? avg_score_pct : 0);
+  const barColor = sortBy === 'plays' ? col : pctColor(avg_score_pct ?? 0);
+
+  return (
+    <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+        <span style={{ fontSize: 13, color: col, fontWeight: 600 }}>{category}</span>
+        {/* Bal info: ha kitöltések szerint → kvíz db + átlag%; ha % szerint → kvíz db + kitöltés db */}
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+          {quiz_count} kvíz
+          {sortBy === 'plays'
+            ? (avg_score_pct !== null ? ` · ${avg_score_pct}%` : '')
+            : ` · ${total_plays} kitöltés`}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, height: 6, background: 'var(--border-light)', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${barWidth}%`, background: barColor, borderRadius: 99 }} />
+        </div>
+        {/* Jobb szám (színes): ha kitöltések szerint → total_plays×; ha % szerint → avg_score_pct% */}
+        {sortBy === 'plays' ? (
+          <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 38, textAlign: 'right' }}>
+            {total_plays}×
+          </span>
+        ) : (
+          avg_score_pct !== null && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: pctColor(avg_score_pct), minWidth: 38, textAlign: 'right' }}>
+              {avg_score_pct}%
+            </span>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Streak segédfüggvények ─────────────────────────────────────
 function streakLabel(days) {
   if (days === 0) return 'Nincs aktív széria';
   if (days === 1) return '1 napos széria';
   return `${days} napos széria`;
 }
-
 function streakColor(days) {
   if (days === 0) return 'var(--muted)';
   if (days < 3)  return 'var(--warning)';
@@ -141,14 +209,19 @@ function streakColor(days) {
   return 'var(--success)';
 }
 
+const CAT_ROW_HEIGHT = 37;
+const CAT_VISIBLE    = 5;
+
 // ── Főkomponens ─────────────────────────────────────────────────
 export default function DashboardStats() {
   const navigate = useNavigate();
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
 
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [data,         setData]         = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
+  const [catSortBy,    setCatSortBy]    = useState('pct');
+  const [ownCatSortBy, setOwnCatSortBy] = useState('plays');
 
   useEffect(() => {
     if (!user?.id) { setLoading(false); return; }
@@ -182,8 +255,23 @@ export default function DashboardStats() {
   const { player_stats, monthly, category_performance, recent_attempts,
           creator_stats, own_quizzes, own_categories } = data;
 
-  const maxPlays   = Math.max(...own_quizzes.map(q => q.play_count), 1);
-  const streakDays = player_stats.streak_days ?? 0;
+  const maxPlays       = Math.max(...own_quizzes.map(q => q.play_count), 1);
+  const streakDays     = player_stats.streak_days ?? 0;
+  const totalQuestions = own_quizzes.reduce((sum, q) => sum + (q.question_count ?? 0), 0);
+
+  const sortedCategories = [...category_performance].sort((a, b) =>
+    catSortBy === 'cnt' ? b.cnt - a.cnt : b.avg_pct - a.avg_pct
+  );
+  const maxCnt = Math.max(...category_performance.map(r => r.cnt), 1);
+
+  const sortedOwnCats = [...own_categories].sort((a, b) =>
+    ownCatSortBy === 'plays'
+      ? b.total_plays - a.total_plays
+      : (b.avg_score_pct ?? 0) - (a.avg_score_pct ?? 0)
+  );
+  const maxOwnPlays = Math.max(...own_categories.map(r => r.total_plays), 1);
+
+  const catListMaxHeight = CAT_ROW_HEIGHT * CAT_VISIBLE;
 
   return (
     <div className="tab-content">
@@ -203,19 +291,7 @@ export default function DashboardStats() {
         subtitle="Kitöltőként elért teljesítmény és statisztikák"
       />
 
-      {/* Összesítő kártyák */}
       <div className="stat-grid" style={{ marginBottom: 28 }}>
-        <StatCard
-          icon="✅"
-          value={player_stats.attempt_count}
-          label="Kitöltött kvízek"
-        />
-        <StatCard
-          icon="🎯"
-          value={(player_stats.avg_percentage ?? 0) + '%'}
-          label="Átlagos eredmény"
-          color={player_stats.avg_percentage ? pctColor(player_stats.avg_percentage) : undefined}
-        />
         <StatCard
           icon={streakDays > 0 ? '🔥' : '💤'}
           value={streakDays}
@@ -223,42 +299,64 @@ export default function DashboardStats() {
           color={streakColor(streakDays)}
           sub={streakLabel(streakDays)}
         />
+        <StatCard icon="✅" value={player_stats.attempt_count} label="Kitöltött kvízek" />
+        <StatCard icon="🌟" value={player_stats.success_count} label="Sikeres teljesítés" color="var(--success)" />
         <StatCard
-          icon="🌟"
-          value={player_stats.success_count}
-          label="Sikeres teljesítés"
-          color="var(--success)"
+          icon="🎯"
+          value={(player_stats.avg_percentage ?? 0) + '%'}
+          label="Átlagos eredmény"
+          color={player_stats.avg_percentage ? pctColor(player_stats.avg_percentage) : undefined}
         />
       </div>
 
-      {/* Havi kitöltések + Kategória átlagok */}
-      <div className="stats-row">
+      <div className="stats-row" style={{ alignItems: 'stretch' }}>
         <div className="stats-panel">
           <h3 className="section-title">Kitöltések havonta</h3>
           <MonthlyChart monthly={monthly} />
         </div>
 
-        <div className="stats-panel">
-          <h3 className="section-title">Kategóriánkénti átlagom</h3>
+        <div className="stats-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <h3 className="section-title" style={{ margin: 0 }}>Kategóriánkénti átlagom</h3>
+            {category_performance.length > 0 && (
+              <ToggleBtn
+                onClick={() => setCatSortBy(s => s === 'pct' ? 'cnt' : 'pct')}
+                title={catSortBy === 'pct' ? 'Váltás: kitöltések szerinti sorrend' : 'Váltás: eredmény szerinti sorrend'}
+              />
+            )}
+          </div>
+          {category_performance.length > 0 && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 6px', lineHeight: 1.4 }}>
+              {catSortBy === 'pct'
+                ? 'Rendezve: átlagos eredmény szerint (csökkenő)'
+                : 'Rendezve: kitöltések száma szerint (csökkenő)'}
+            </p>
+          )}
           {category_performance.length === 0 ? (
             <EmptyHint text="Még nincs elég adat a kategóriánkénti kimutatáshoz." />
           ) : (
-            <div>
-              {category_performance.map(r => (
-                <CatPerfRow
-                  key={r.category}
-                  category={r.category}
-                  avg_pct={r.avg_pct}
-                  cnt={r.cnt}
-                  showBest
-                />
-              ))}
-            </div>
+            <>
+              <div style={{
+                maxHeight: catListMaxHeight, overflowY: 'auto', overflowX: 'hidden',
+                scrollbarWidth: 'thin', scrollbarColor: 'var(--border-light) transparent',
+              }}>
+                {sortedCategories.map(r => (
+                  <CatPerfRow
+                    key={r.category}
+                    category={r.category}
+                    avg_pct={r.avg_pct}
+                    cnt={r.cnt}
+                    maxCnt={maxCnt}
+                    sortBy={catSortBy}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* ── Legutóbbi kitöltések – ugyanolyan mint a főoldali "Legutóbbi eredményeid" ── */}
+      {/* ── Legutóbbi kitöltések ── */}
       <div className="section" style={{ marginTop: 8 }}>
         <h3 className="section-title" style={{ marginBottom: 12 }}>Legutóbbi kitöltéseim</h3>
         {recent_attempts.length === 0 ? (
@@ -272,23 +370,35 @@ export default function DashboardStats() {
           </div>
         ) : (
           <div className="result-list">
-            {recent_attempts.map((r, i) => (
-              <div key={r.id ?? i} className="result-row">
-                <div className="result-info">
-                  <span className="result-name">{r.quiz_title}</span>
-                  <span className="result-date">
-                    {r.category || ''}
-                    {r.finished_at
-                      ? (r.category ? ' · ' : '') + new Date(r.finished_at).toLocaleDateString('hu-HU')
-                      : ''}
-                  </span>
-                </div>
-                <div className="result-right">
+            {recent_attempts.map((r, i) => {
+              const catCol = r.category ? catColor(r.category) : null;
+              return (
+                <div key={r.id ?? i} className="result-row">
+                  <div className="result-info">
+                    <span className="result-name">{r.quiz_title}</span>
+                    <span className="result-date" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {catCol && (
+                        <span style={{
+                          display: 'inline-block',
+                          width: 8, height: 8,
+                          borderRadius: '50%',
+                          background: catCol,
+                          flexShrink: 0,
+                        }} />
+                      )}
+                      <span style={{ color: catCol ?? undefined, fontWeight: catCol ? 500 : undefined }}>
+                        {r.category || ''}
+                      </span>
+                      {r.finished_at && (
+                        <span style={{ color: 'var(--muted)', fontWeight: 'normal' }}>
+                          {r.category ? '· ' : ''}{new Date(r.finished_at).toLocaleDateString('hu-HU')}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="result-right">
                   <div className="pct-bar-wrap">
-                    <div className="pct-bar" style={{
-                      width: `${r.percentage}%`,
-                      background: pctColor(r.percentage),
-                    }} />
+                    <div className="pct-bar" style={{ width: `${r.percentage}%`, background: pctColor(r.percentage) }} />
                   </div>
                   <span className="result-score" style={{ color: pctColor(r.percentage) }}>
                     {r.score} / {r.total_points} — {r.percentage}%
@@ -305,9 +415,10 @@ export default function DashboardStats() {
                       🔄
                     </button>
                   )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -321,20 +432,15 @@ export default function DashboardStats() {
         subtitle="Létrehozóként – mennyien töltötték ki és milyen eredménnyel"
       />
 
-      {/* Összesítő kártyák */}
       <div className="stat-grid" style={{ marginBottom: 28 }}>
         <StatCard icon="📝" value={creator_stats.quiz_count}  label="Létrehozott kvíz" />
+        <StatCard icon="✏️" value={totalQuestions}            label="Megírt kérdések" />
         <StatCard icon="👥" value={creator_stats.total_plays} label="Összes kitöltés" />
         <StatCard
           icon="🎯"
           value={creator_stats.avg_score_pct !== null ? (creator_stats.avg_score_pct + '%') : '–'}
           label="Átlagos kitöltői eredmény"
           color={creator_stats.avg_score_pct ? pctColor(creator_stats.avg_score_pct) : undefined}
-        />
-        <StatCard
-          icon="🌍"
-          value={own_quizzes.filter(q => q.is_public).length}
-          label="Nyilvános kvíz"
         />
       </div>
 
@@ -354,9 +460,7 @@ export default function DashboardStats() {
             <div className="stats-panel" style={{ flex: 2 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 className="section-title" style={{ margin: 0 }}>Legtöbbet kitöltött kvízeim</h3>
-                <button className="link-btn" onClick={() => navigate('/dashboard/quizzes')}>
-                  Összes →
-                </button>
+                <button className="link-btn" onClick={() => navigate('/dashboard/quizzes')}>Összes →</button>
               </div>
               {own_quizzes.length === 0 ? (
                 <EmptyHint text="Még nem töltötte ki senki a kvízeidet." />
@@ -398,42 +502,32 @@ export default function DashboardStats() {
               )}
             </div>
 
-            {/* Kategória-bontás */}
+            {/* Kitöltések kategóriánként – javított adatmegjelenítéssel */}
             {own_categories.length > 0 && (
               <div className="stats-panel" style={{ flex: 1 }}>
-                <h3 className="section-title">Kitöltések kategóriánként</h3>
-                {own_categories.map(r => {
-                  const col = catColor(r.category);
-                  const maxCatPlays = Math.max(...own_categories.map(x => x.total_plays), 1);
-                  return (
-                    <div key={r.category} style={{ padding: '8px 0',
-                      borderBottom: '1px solid var(--border-light)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center', marginBottom: 5 }}>
-                        <span style={{ fontSize: 13, color: col, fontWeight: 600 }}>{r.category}</span>
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                          {r.quiz_count} kvíz · {r.total_plays} kitöltés
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, background: 'var(--border-light)',
-                          borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%',
-                            width: `${(r.total_plays / maxCatPlays) * 100}%`,
-                            background: col, borderRadius: 99,
-                          }} />
-                        </div>
-                        {r.avg_score_pct !== null && (
-                          <span style={{ fontSize: 12, fontWeight: 700,
-                            color: pctColor(r.avg_score_pct), minWidth: 38, textAlign: 'right' }}>
-                            ⌀{r.avg_score_pct}%
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h3 className="section-title" style={{ margin: 0 }}>Kitöltések kategóriánként</h3>
+                  <ToggleBtn
+                    onClick={() => setOwnCatSortBy(s => s === 'plays' ? 'pct' : 'plays')}
+                    title={ownCatSortBy === 'plays' ? 'Váltás: átlagos eredmény szerinti sorrend' : 'Váltás: kitöltések szerinti sorrend'}
+                  />
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 6px', lineHeight: 1.4 }}>
+                  {ownCatSortBy === 'plays'
+                    ? 'Rendezve: kitöltések száma szerint (csökkenő)'
+                    : 'Rendezve: átlagos eredmény szerint (csökkenő)'}
+                </p>
+                {sortedOwnCats.map(r => (
+                  <OwnCatRow
+                    key={r.category}
+                    category={r.category}
+                    quiz_count={r.quiz_count}
+                    total_plays={r.total_plays}
+                    avg_score_pct={r.avg_score_pct}
+                    maxPlays={maxOwnPlays}
+                    sortBy={ownCatSortBy}
+                  />
+                ))}
               </div>
             )}
           </div>

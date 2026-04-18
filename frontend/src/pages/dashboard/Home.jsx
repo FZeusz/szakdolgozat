@@ -88,42 +88,58 @@ export default function DashboardHome() {
           </div>
         ) : (
           <div className="result-list">
-            {recent.map((r, i) => (
-              <div key={i} className="result-row">
-                <div className="result-info">
-                  <span className="result-name">{r.quiz_title}</span>
-                  <span className="result-date">
-                    {r.category || ''}
-                    {r.finished_at
-                      ? (r.category ? ' · ' : '') + new Date(r.finished_at).toLocaleDateString('hu-HU')
-                      : ''}
-                  </span>
-                </div>
-                <div className="result-right">
-                  <div className="pct-bar-wrap">
-                    <div className="pct-bar" style={{
-                      width: `${r.percentage}%`,
-                      background: pctColor(r.percentage),
-                    }} />
+            {recent.map((r, i) => {
+              const catCol = r.category ? catColor(r.category) : null;
+              return (
+                <div key={i} className="result-row">
+                  <div className="result-info">
+                    <span className="result-name">{r.quiz_title}</span>
+                    <span className="result-date" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {catCol && (
+                        <span style={{
+                          display: 'inline-block',
+                          width: 8, height: 8,
+                          borderRadius: '50%',
+                          background: catCol,
+                          flexShrink: 0,
+                        }} />
+                      )}
+                      <span style={{ color: catCol ?? undefined, fontWeight: catCol ? 500 : undefined }}>
+                        {r.category || ''}
+                      </span>
+                      {r.finished_at && (
+                        <span style={{ color: 'var(--muted)', fontWeight: 'normal' }}>
+                          {r.category ? '· ' : ''}{new Date(r.finished_at).toLocaleDateString('hu-HU')}
+                        </span>
+                      )}
+                    </span>
                   </div>
-                  <span className="result-score" style={{ color: pctColor(r.percentage) }}>
-                    {r.score} / {r.total_points} — {r.percentage}%
-                    {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
-                    {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
-                  </span>
-                  {!r.one_attempt && r.quiz_id && (
-                    <button
-                      className="icon-btn"
-                      title="Kvíz újra kitöltése"
-                      style={{ marginLeft: 8, fontSize: 13, flexShrink: 0 }}
-                      onClick={() => navigate(`/quiz/${r.quiz_id}`)}
-                    >
-                      🔄
-                    </button>
-                  )}
+                  <div className="result-right">
+                    <div className="pct-bar-wrap">
+                      <div className="pct-bar" style={{
+                        width: `${r.percentage}%`,
+                        background: pctColor(r.percentage),
+                      }} />
+                    </div>
+                    <span className="result-score" style={{ color: pctColor(r.percentage) }}>
+                      {r.score} / {r.total_points} — {r.percentage}%
+                      {r.is_successful === true  && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Sikeres</span>}
+                      {r.is_successful === false && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--error)',   fontWeight: 700 }}>✗ Sikertelen</span>}
+                    </span>
+                    {!r.one_attempt && r.quiz_id && (
+                      <button
+                        className="icon-btn"
+                        title="Kvíz újra kitöltése"
+                        style={{ marginLeft: 8, fontSize: 13, flexShrink: 0 }}
+                        onClick={() => navigate(`/quiz/${r.quiz_id}`)}
+                      >
+                        🔄
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

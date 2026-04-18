@@ -85,9 +85,6 @@ router.get('/:userId/stats-data', async (req, res) => {
                  WHERE qa.user_id = $1 AND qa.total_questions > 0 AND (q.hide_results IS NULL OR q.hide_results = false)`,
                 [userId]
             ),
-            // Sikeres teljesítés:
-            //   – ha volt sikerességi küszöb (pass_mode != 'none') → is_successful = true  ÉS  hide_results = false
-            //   – ha nem volt küszöb (pass_mode = 'none')          → elért % >= 80          ÉS  hide_results = false
             pool.query(
                 `SELECT COUNT(*)::int AS cnt
                  FROM quiz_attempts qa
@@ -109,11 +106,6 @@ router.get('/:userId/stats-data', async (req, res) => {
                    )`,
                 [userId]
             ),
-            // Aktív széria: hány egymást követő nap volt legalább egy kitöltés
-            // (ma VAGY tegnap óta megszakítás nélkül – tehát a mai nap még "nyitva" van)
-            // Trükk: ha a napokat és sorszámaikat kivonjuk egymásból, az egymást követő
-            // napok ugyanabba a csoportba esnek (azonos különbség). Majd az a csoport
-            // számít aktívnak, amelyiknek az utolsó napja ma vagy tegnap volt.
             pool.query(
                 `WITH daily AS (
                      SELECT DISTINCT DATE(completed_at) AS d
@@ -205,7 +197,7 @@ router.get('/:userId/stats-data', async (req, res) => {
 
         const [ownQuizCount, totalPlaysRow, ownAvgRow] = await Promise.all([
             pool.query(`SELECT COUNT(*)::int AS cnt FROM quizzes WHERE owner_id = $1`, [userId]),
-            pool.query(`SELECT COALESCE(SUM(play_count),0)::int AS total FROM quizzes WHERE owner_id = $1`, [userId]),
+            pool.query(`SELECT COUNT(qa.id)::int AS total FROM quizzes q JOIN quiz_attempts qa ON qa.quiz_id = q.id WHERE q.owner_id = $1`, [userId]),
             pool.query(
                 `SELECT ROUND(AVG(
                     qa.score::numeric / NULLIF(COALESCE(qa.total_points, qa.total_questions), 0) * 100
@@ -218,26 +210,27 @@ router.get('/:userId/stats-data', async (req, res) => {
         ]);
 
         const ownQuizzesRes = await pool.query(
-            `SELECT q.id, q.title, q.category, q.play_count, q.is_public,
+            `SELECT q.id, q.title, q.category, q.is_public,
                     COUNT(DISTINCT qu.id)::int AS question_count,
                     ROUND(AVG(
                         qa.score::numeric / NULLIF(COALESCE(qa.total_points, qa.total_questions), 0) * 100
                     ))::int AS avg_score_pct,
-                    COUNT(DISTINCT qa.id)::int AS attempt_count
+                    COUNT(DISTINCT qa.id)::int AS play_count
              FROM quizzes q
              LEFT JOIN questions qu ON qu.quiz_id = q.id AND qu.is_active = true
              LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.total_questions > 0
              WHERE q.owner_id = $1
              GROUP BY q.id
-             ORDER BY q.play_count DESC
+             ORDER BY play_count DESC
              LIMIT 10`,
             [userId]
         );
 
+        // ── own_categories: kategóriánkénti aggregáció ──────────────────────────────
         const ownCatRes = await pool.query(
             `SELECT q.category,
                     COUNT(DISTINCT q.id)::int AS quiz_count,
-                    COALESCE(SUM(q.play_count), 0)::int AS total_plays,
+                    COUNT(DISTINCT qa.id)::int AS total_plays,
                     ROUND(AVG(
                         qa.score::numeric / NULLIF(COALESCE(qa.total_points, qa.total_questions), 0) * 100
                     ))::int AS avg_score_pct
