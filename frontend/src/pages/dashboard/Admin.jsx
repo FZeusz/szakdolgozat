@@ -27,9 +27,9 @@ export default function DashboardAdmin() {
     setLoading(true); setError('');
     try {
       const [qRes, uRes, rRes] = await Promise.all([
-        fetch('http://localhost:5000/api/admin/quizzes'),
-        fetch('http://localhost:5000/api/admin/users'),
-        fetch('http://localhost:5000/api/admin/reports'),
+        fetch(`${import.meta.env.VITE_API_URL}/api/admin/quizzes`),
+        fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`),
+        fetch(`${import.meta.env.VITE_API_URL}/api/admin/reports`),
       ]);
       if (qRes.ok) setQuizzes(await qRes.json());
       if (uRes.ok) setUsers(await uRes.json());
@@ -41,7 +41,7 @@ export default function DashboardAdmin() {
   const handleDeleteQuiz = async (qId, title) => {
     if (!window.confirm(`Törlöd ezt a kvízt?\n"${title}"\n\nEz visszavonhatatlan!`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${qId}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${qId}`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setQuizzes(prev => prev.filter(q => q.id !== qId));
     } catch { alert('Törlés sikertelen!'); }
@@ -50,7 +50,7 @@ export default function DashboardAdmin() {
   const handleDeleteUser = async (userId, username) => {
     if (!window.confirm(`Törlöd ezt a felhasználót?\n"${username}"\n\nEz visszavonhatatlan, és az összes kapcsolódó kvíz is törlődik!`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/${userId}`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setUsers(prev => prev.filter(u => u.id !== userId));
       setQuizzes(prev => prev.filter(q => q.owner_id !== userId));
@@ -60,7 +60,7 @@ export default function DashboardAdmin() {
   const handleDeleteReport = async (reportId) => {
     if (!window.confirm(`Kezelted/Törlöd ezt a jelentést?\n\nEzzel eltávolítod a listából.`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/reports/${reportId}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/reports/${reportId}`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setReports(prev => prev.filter(r => r.id !== reportId));
     } catch { alert('Törlés sikertelen!'); }

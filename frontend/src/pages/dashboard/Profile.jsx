@@ -27,7 +27,7 @@ function PasswordChangeCard({ userId }) {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/change-password', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, currentPassword: current, newPassword: next }),
@@ -160,7 +160,7 @@ export default function DashboardProfile() {
 
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`http://localhost:5000/api/users/${user.id}/home-data`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}/home-data`)
       .then(r => r.json())
       .then(d => { if (d.stats) setStats(d.stats); })
       .catch(() => {});
@@ -173,7 +173,7 @@ export default function DashboardProfile() {
   const handleDeleteAccount = async () => {
     if (!window.confirm('Biztosan törölni szeretnéd a fiókodat?')) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/delete-account/${user.id}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/delete-account/${user.id}`, { method: 'DELETE' });
       if (res.ok) {
         alert('Fiókod sikeresen törölve.');
         localStorage.clear();

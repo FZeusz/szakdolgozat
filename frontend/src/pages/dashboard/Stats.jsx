@@ -233,7 +233,7 @@ export default function DashboardStats() {
 
   useEffect(() => {
     if (!user?.id) { setLoading(false); return; }
-    fetch(`http://localhost:5000/api/users/${user.id}/stats-data`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}/stats-data`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(d => setData(d))
       .catch(() => setError('Nem sikerült betölteni a statisztikákat.'))

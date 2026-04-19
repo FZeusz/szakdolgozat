@@ -1,20 +1,20 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Létrehozunk egy kapcsolat-medencét (Pool)
+// A Pool beállítása úgy, hogy támogassa a helyi és a felhős környezetet is
 const pool = new Pool({
-  // helyi adatbázis kapcsolati adatok (kikapcsolva)
+  // Ha az interneten futunk, a Neon/Render egyetlen URL-t ad (connectionString)
+  connectionString: process.env.DATABASE_URL,
+  
+  // Helyi fejlesztéshez megmaradnak a korábbi változók
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
 
-  // Render felhős adatbázis kapcsolati adatok:
-  /*connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }*/
+  // SSL beállítás: felhőben (ha van DATABASE_URL) kötelező, helyileg nem kell
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 module.exports = pool;

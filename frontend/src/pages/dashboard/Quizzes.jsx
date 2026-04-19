@@ -13,7 +13,7 @@ export default function DashboardQuizzes() {
   const loadQuizzes = async () => {
     setLoading(true); setError('');
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/my/${user?.id}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/my/${user?.id}`);
       if (!res.ok) throw new Error();
       setQuizzes(await res.json());
     } catch { setError('Nem sikerült betölteni a kvízeket.'); }
@@ -25,7 +25,7 @@ export default function DashboardQuizzes() {
   const handleDelete = async (id, title) => {
     if (!window.confirm(`Biztosan törlöd a következő kvízt?\n„${title}"`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       setQuizzes(prev => prev.filter(q => q.id !== id));
     } catch { alert('Törlés sikertelen, próbáld újra!'); }

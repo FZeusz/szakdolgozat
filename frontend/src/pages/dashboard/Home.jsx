@@ -23,8 +23,8 @@ export default function DashboardHome() {
     if (!user?.id) { setLoading(false); return; }
 
     Promise.all([
-      fetch(`http://localhost:5000/api/users/${user.id}/home-data`).then(r => r.json()),
-      fetch(`http://localhost:5000/api/quizzes/public/${user.id}`).then(r => r.json()),
+      fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}/home-data`).then(r => r.json()),
+      fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/public/${user.id}`).then(r => r.json()),
     ]).then(([homeData, pubQuizzes]) => {
       if (homeData.stats)           setStats(homeData.stats);
       if (homeData.recent_attempts) setRecent(homeData.recent_attempts);

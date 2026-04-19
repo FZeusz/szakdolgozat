@@ -18,7 +18,7 @@ export default function QuizStats() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${id}/stats`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/stats`);
       if (!res.ok) { setError('Nem sikerült betölteni a statisztikákat.'); return; }
       setData(await res.json());
     } catch { setError('Nem sikerült elérni a szervert.'); }
@@ -29,7 +29,7 @@ export default function QuizStats() {
     if (!window.confirm('Törlöd ezt a kitöltést? Ez visszavonhatatlan!')) return;
     setDeleting(attemptId);
     try {
-      const res = await fetch(`http://localhost:5000/api/attempts/${attemptId}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/attempts/${attemptId}`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setData(prev => ({
         ...prev,
@@ -53,7 +53,7 @@ export default function QuizStats() {
   const handleDeleteAll = async () => {
     if (!window.confirm('Törlöd az összes kitöltést? Ez visszavonhatatlan!')) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${id}/attempts`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/attempts`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setData(prev => ({ ...prev, attempts: [], summary: { total_attempts: 0, avg_percentage: 0 } }));
       setExpandedIds(new Set());

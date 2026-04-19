@@ -14,7 +14,7 @@ function ReportModal({ quizId, userId, onClose }) {
   const handleSubmit = async () => {
     setSubmitting(true); setError('');
     try {
-      const res = await fetch('http://localhost:5000/api/reports', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/reports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quiz_id: quizId, user_id: userId || null, message: message.trim() || null }),
@@ -150,19 +150,19 @@ export default function TakeQuiz() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/quizzes/${id}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}`);
         if (!res.ok) { setError('A kvíz nem található.'); setPhase('error'); return; }
         const data = await res.json();
         setQuiz(data);
 
-        const qRes  = await fetch(`http://localhost:5000/api/quizzes/${id}/questions`);
+        const qRes  = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/questions`);
         const qData = await qRes.json();
         setQuestions(qData);
 
         if (!qData.length) { setError('Ennek a kvíznek még nincsenek kérdései.'); setPhase('error'); return; }
 
         if (data.one_attempt && user?.id) {
-          const checkRes  = await fetch(`http://localhost:5000/api/quizzes/${id}/check-attempt/${user.id}`);
+          const checkRes  = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/check-attempt/${user.id}`);
           const checkData = await checkRes.json();
           if (checkData.already_attempted) {
             setError('Ezt a kvízt már kitöltötted. Csak egyszer lehet kitölteni.');
@@ -187,7 +187,7 @@ export default function TakeQuiz() {
     e.preventDefault();
     setPwError(''); setPwLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${id}/verify-password`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/verify-password`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pwInput }),
       });
@@ -224,7 +224,7 @@ export default function TakeQuiz() {
       return { question_id: q.id, answer_ids: [...(selected[q.id] || new Set())] };
     });
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${id}/submit`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/submit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user?.id, answers, attempt_id: attemptId }),
       });
@@ -322,7 +322,7 @@ export default function TakeQuiz() {
                 });
               }
               try {
-                const startRes = await fetch(`http://localhost:5000/api/quizzes/${id}/start`, {
+                const startRes = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/start`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ user_id: user?.id }),

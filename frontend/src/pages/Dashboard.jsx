@@ -22,7 +22,7 @@ export default function Dashboard() {
     if (!isAdmin) return;
     const fetchReports = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/admin/reports');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/reports`);
         if (!res.ok) return;
         const data = await res.json();
         setReportCount(Array.isArray(data) ? data.length : 0);

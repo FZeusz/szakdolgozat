@@ -55,7 +55,7 @@ export default function DashboardExplore() {
     const load = async () => {
       setLoading(true); setError('');
       try {
-        const res = await fetch(`http://localhost:5000/api/quizzes/public/${user?.id}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/public/${user?.id}`);
         if (!res.ok) throw new Error();
         setQuizzes(await res.json());
       } catch { setError('Nem sikerült betölteni a kvízeket.'); }
@@ -76,7 +76,7 @@ export default function DashboardExplore() {
     if (!shareCode.trim()) return;
     setFindError(''); setFoundQuiz(null); setFindSuccess(false); setFindLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/find/${shareCode.trim()}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/find/${shareCode.trim()}`);
       const data = await res.json();
       if (!res.ok) return setFindError(data.message);
       setFoundQuiz(data); setFindSuccess(true);

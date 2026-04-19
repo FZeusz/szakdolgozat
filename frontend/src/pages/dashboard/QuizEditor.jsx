@@ -221,7 +221,7 @@ function AccessPasswordPanel({ quizId }) {
   const [showPw,   setShowPw]     = useState(false);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/api/quizzes/${quizId}/access-password`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${quizId}/access-password`)
       .then(r => r.json())
       .then(d => { setPassword(d.access_password || ''); setLoading(false); })
       .catch(() => setLoading(false));
@@ -231,7 +231,7 @@ function AccessPasswordPanel({ quizId }) {
     if (!password.trim()) { setMsg({ type: 'error', text: 'A jelszó nem lehet üres!' }); return; }
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${quizId}/access-password`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${quizId}/access-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ access_password: password.trim() }),
@@ -320,7 +320,7 @@ function PassScorePanel({ quiz, questions, onSaved }) {
     }
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${quiz.id}/pass-score`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${quiz.id}/pass-score`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pass_score: pts }),
@@ -396,7 +396,7 @@ function PassPercentagePanel({ quiz, questions, onSaved }) {
     }
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`http://localhost:5000/api/quizzes/${quiz.id}/pass-percentage`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${quiz.id}/pass-percentage`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pass_percentage: pct }),
@@ -476,8 +476,8 @@ export default function QuizEditor() {
       setLoadError('');
       try {
         const [qzRes, questRes] = await Promise.all([
-          fetch(`http://localhost:5000/api/quizzes/${id}`),
-          fetch(`http://localhost:5000/api/quizzes/${id}/questions`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/questions`),
         ]);
         if (!qzRes.ok)    { setLoadError('A kvíz nem található.'); return; }
         if (!questRes.ok) { setLoadError('A kérdések betöltése sikertelen.'); return; }
@@ -493,7 +493,7 @@ export default function QuizEditor() {
   const handleAddSave = async (q) => {
     setSaving(true); setSaveError('');
     try {
-      const res  = await fetch(`http://localhost:5000/api/quizzes/${id}/questions`, {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/quizzes/${id}/questions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q),
       });
       const data = await res.json();
@@ -507,7 +507,7 @@ export default function QuizEditor() {
   const handleEditSave = async (q) => {
     setSaving(true); setSaveError('');
     try {
-      const res  = await fetch(`http://localhost:5000/api/questions/${editingId}`, {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/questions/${editingId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q),
       });
       const data = await res.json();
@@ -522,7 +522,7 @@ export default function QuizEditor() {
   const handleDelete = async (qId, text) => {
     if (!window.confirm(`Törlöd ezt a kérdést?\n"${text}"`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/questions/${qId}`, { method: 'DELETE' });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/questions/${qId}`, { method: 'DELETE' });
       if (!res.ok) { alert('Törlés sikertelen!'); return; }
       setQuestions(prev => prev.filter(x => x.id !== qId));
     } catch { alert('Törlés sikertelen!'); }
